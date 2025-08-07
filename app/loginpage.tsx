@@ -3,6 +3,18 @@ import Image from "next/image";
 import { useState } from "react";
 import { SwapCards } from "./swapcards";
 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { library } from '@fortawesome/fontawesome-svg-core'
+
+/* import all the icons in Free Solid, Free Regular, and Brands styles */
+import { fas } from '@fortawesome/free-solid-svg-icons'
+import { far } from '@fortawesome/free-regular-svg-icons'
+import { fab } from '@fortawesome/free-brands-svg-icons'
+
+library.add(fas, far, fab)
+
+
+
 export default function Home() {
   const [showFTUE, setShowFTUE] = useState(true);
 
@@ -10,8 +22,8 @@ export default function Home() {
     <>
       {/* Navbar stays above everything */}
       {/* Page layout */}
-      <main className="bg-startblack min-h-screen max-h-screen flex flex-col overflow-hidden relative">
-         <nav className="relative z-50 navbar bg-startblack text-neutral-content px-4">
+      <main className="bg-base-100 min-h-screen max-h-screen flex flex-col overflow-hidden relative">
+         <nav className="relative z-50 navbar bg-base-100 text-neutral-content px-4">
           <div className="flex-1">
             <a className="btn btn-neutral text-xl">daisyUI</a>
           </div>
@@ -29,16 +41,18 @@ export default function Home() {
           </div>
         </nav>
         {/* Spotify Section */}
-        <section className="z-0 relative rounded-b-3xl flex justify-center justify-items-center basis-1 flex-1">
+         <section className="z-0 relative rounded-b-3xl flex basis-1 flex-1">
          
-            <div className="card w-[1/2] h-[1/2] bg-base-100 card-lg shadow-sm m-4">
-            <div className="card-body">
-            <h2 className="card-title">Spotify</h2>
-            <p>Login using your spotify account to receive personalized notifications for events and festivals</p>
-            <div className="justify-end card-actions">
-            <button className="btn btn-primary">Spotify Login</button>
-            </div>
-            </div>
+  <div className="flex flex-col items-center justify-start h-full w-full">
+              <div className="flex flex-col items-center justify-center w-[1/4] rounded-3xl shadow-lg p-4 bg-gradient-to-r from-[#1DB954] to-[#1ED760]" >
+              {/*style={{background: "linear-gradient(120deg,rgba(30, 215, 96, 1) 0%, rgba(0, 0, 0, 1) 20%, rgba(0, 0, 0, 1) 80%, rgba(30, 215, 96, 1) 100%)"}} */}
+                <p className="text-center mb-4 text-neutral text-shadow-sm">Login using your spotify account to receive personalized notifications for events and festivals</p>
+                <button className="btn btn-soft btn-wide">
+                  
+                  <FontAwesomeIcon icon={['fab', 'spotify']} />
+
+                  Connect to Spotify</button>
+              </div>
             </div>
          
         </section>
