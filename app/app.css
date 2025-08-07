@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+@theme {
+  --color-startblack:   oklch(0.2393 0.0142 266.97);
+  --color-startwhite:   oklch(0.9278 0.0029 264.54);
+  --color-navbar:       oklch(0.3518 0.0142 266.97);
+  --color-btncarousel:  oklch(0.6925 0.0031 264.54);
+  --btn-focus-scale: 300;
+}
