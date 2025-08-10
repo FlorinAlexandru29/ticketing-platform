@@ -26,7 +26,9 @@ export default function Navbar() {
         </button>
 
         {session ? (
-          <button className="btn btn-neutral btn-sm" onClick={() => signOut()}>Logout</button>
+          <>
+          <Link href="/my-profile">My Profile</Link>
+          <button className="btn btn-neutral btn-sm" onClick={() => signOut()}>Logout</button></>
         ) : (<>
         <Link href="/login" className="btn btn-neutral btn-sm">
           Login

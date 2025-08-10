@@ -1,0 +1,131 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/* ---------- Enums ---------- */
+enum Role {
+  USER
+  HOST
+  ADMIN
+}
+
+enum HostVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/* ---------- NextAuth core tables ---------- */
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  // NEW
+  birthdate     DateTime?
+  role          Role      @default(USER)
+  hostProfile   HostProfile?
+
+  accounts      Account[]
+  sessions      Session[]
+
+  // domain relations
+  tickets       Ticket[]
+  events        Event[]   @relation("HostEvents")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+
+  // token fields expected by NextAuth Prisma adapter
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  // NOTE: do NOT mark userId as @unique; a user can have many accounts
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+/* ---------- Host profile ---------- */
+model HostProfile {
+  id               String                 @id @default(cuid())
+  userId           String                 @unique
+  user             User                   @relation(fields: [userId], references: [id])
+
+  displayName      String
+  website          String?
+  contactEmail     String?
+  phone            String?
+
+  verification     HostVerificationStatus @default(PENDING)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+}
+
+/* ---------- Domain models ---------- */
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  normalized  String   // lowercased/trimmed title for dedupe
+  description String
+  date        DateTime
+  venue       String
+  city        String
+
+  hostId      String
+  host        User     @relation("HostEvents", fields: [hostId], references: [id])
+
+  tickets     Ticket[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // prevent exact duplicates: same title (normalized) + date + venue + city
+  @@unique([normalized, date, venue, city])
+}
+
+model Ticket {
+  id        String   @id @default(cuid())
+  eventId   String
+  ownerId   String
+  price     Int      // store in cents
+  currency  String   // "RON","EUR"
+  createdAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  owner User  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
