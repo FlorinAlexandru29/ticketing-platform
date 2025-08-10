@@ -108,4 +108,16 @@ export const authOptions: NextAuthOptions = {
   // TEMP: easier debugging
   debug: true,
   pages: { error: "/auth/error" },
+    logger: {
+    error(code, metadata) {
+      // shows the exact error + details in Vercel "Functions" logs
+      console.error("NextAuth ERROR:", code, metadata);
+    },
+    warn(code) {
+      console.warn("NextAuth WARN:", code);
+    },
+    debug(code, metadata) {
+      console.log("NextAuth DEBUG:", code, metadata);
+    },
+  },
 };
