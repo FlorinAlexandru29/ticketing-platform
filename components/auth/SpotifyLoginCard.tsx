@@ -1,5 +1,6 @@
 // components/auth/SpotifyLoginCard.tsx
 'use client';
+import { useSession, signIn, signOut } from 'next-auth/react';
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
@@ -9,7 +10,7 @@ export default function SpotifyLoginCard() {
       <p className="text-center mb-4 text-neutral text-shadow-sm">
         Login using your Spotify account to receive personalized notifications for events and festivals
       </p>
-      <button className="btn btn-soft btn-wide">
+      <button className="btn btn-soft btn-wide" onClick={() => signIn('spotify')}>
         <FontAwesomeIcon icon={['fab', 'spotify']} />
         Connect to Spotify
       </button>

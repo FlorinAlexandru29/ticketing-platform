@@ -8,7 +8,6 @@ import FTUEOverlay from "@/components/auth/FTUEOverlay";
 
 export default function LoginPage() {
   const [showFTUE, setShowFTUE] = useState(true);
-
   return (
     <main className="bg-base-100 min-h-screen max-h-screen flex flex-col overflow-hidden relative">
       <Navbar />
