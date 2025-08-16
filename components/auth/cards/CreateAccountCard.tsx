@@ -1,6 +1,6 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUser, faKey, faEye, faEyeSlash, faAt } from '@fortawesome/free-solid-svg-icons';
-import type { AuthCardProps } from '@/components/auth/cardsv2/types';
+import type { AuthCardProps } from '@/components/auth/cards/types';
 
 export default function CreateAccountCard({ showPwd, setShowPwd, setMode }: AuthCardProps) {
     return (

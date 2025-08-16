@@ -2,6 +2,7 @@
 'use client';
 
 import { useRef, useCallback } from 'react';
+import { signIn } from 'next-auth/react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSpotify } from '@fortawesome/free-brands-svg-icons';
 
@@ -48,7 +49,7 @@ export default function SpotifyCard({ dock, setDock }: Props) {
         </div>
 
         <div className="shrink-0 h-[var(--oauth-row-h)] flex items-center justify-center mt-auto">
-          <button className="btn btn-soft btn-wide h-[var(--ctrl-h)] text-[var(--font-sz)]">
+          <button className="btn btn-soft btn-wide h-[var(--ctrl-h)] text-[var(--font-sz)]" onClick={() => signIn('spotify')}>
             <FontAwesomeIcon icon={faSpotify} />
             <span className="ml-2 whitespace-nowrap">Connect to Spotify</span>
           </button>

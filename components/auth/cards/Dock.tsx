@@ -1,7 +1,7 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUser } from '@fortawesome/free-solid-svg-icons';
 import { faSpotify } from '@fortawesome/free-brands-svg-icons';
-import { dockProps } from '@/components/auth/cardsv2/types';
+import { dockProps } from '@/components/auth/cards/types';
 export default function Dock({ dock, setDock }: dockProps) {
 
   return (
