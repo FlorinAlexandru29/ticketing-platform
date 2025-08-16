@@ -2,6 +2,7 @@
 import "./globals.css";
 import "./app.css";
 import { SessionProvider } from "next-auth/react";
+import '../lib/fontawesome'; // << add this line
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
