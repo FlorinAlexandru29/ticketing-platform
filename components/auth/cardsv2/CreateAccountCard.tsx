@@ -83,7 +83,7 @@ export default function CreateAccountCard({ showPwd, setShowPwd, setMode }: Auth
                 </div>
                 
                 <div className="flex flex-col shrink-0 h-[var(--oauth-row-h)*1.5] gap-3 justify-center items-center w-full min-w-0 mb-2">
-                    <a href='#' className="link link-primary text-[var(--font-sz)] text-center mt-2"  onClick={(e) => { e.preventDefault(); setMode('signin'); }}> Or Login using an existing account </a> 
+                    <button className="link link-primary text-[var(--font-sz)] text-center mt-2"  onClick={(e) => { e.preventDefault(); setMode('signin'); }}> Or Login using an existing account </button> 
                     <button className="btn btn-neutral-content btn-outline btn-wide h-[var(--ctrl-h)] text-[var(--font-sz)]">
                         Sign up
                     </button>

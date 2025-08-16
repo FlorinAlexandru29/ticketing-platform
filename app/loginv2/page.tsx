@@ -16,10 +16,6 @@ export default function LoginPageV2() {
 
   return (
     <>
-      <Head>
-        <script src="https://kit.fontawesome.com/fbadad80a0.js" crossOrigin="anonymous"></script>
-      </Head>
-
       {/* Safe viewport height; no vertical scroll */}
       <main className="bg-sky-50 h-svh flex flex-col overflow-x-hidden">
         <Navbar />
