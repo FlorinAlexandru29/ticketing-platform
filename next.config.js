@@ -24,6 +24,11 @@ const nextConfig = {
         hostname: 'platform-lookaside.fbsbx.com', // some FB avatars resolve here
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com', // some FB avatars resolve here
+        pathname: '/**',
+      },
     ],
 
     // Or Option 2: simple list (less flexible)

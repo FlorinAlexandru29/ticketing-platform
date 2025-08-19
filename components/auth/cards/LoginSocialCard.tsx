@@ -1,5 +1,6 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGoogle, faFacebook, } from '@fortawesome/free-brands-svg-icons';
+import { signIn } from 'next-auth/react';
 
 export const LoginSocialCard = () => {
   return (
@@ -11,6 +12,7 @@ export const LoginSocialCard = () => {
         <button
           className="btn btn-soft sm:w-auto md:w-[clamp(10rem,45%,16rem)] max-w-full
                              h-[var(--ctrl-h)] text-[var(--font-sz)]"
+                             onClick={() => signIn('google')}
         >
           <FontAwesomeIcon icon={faGoogle} />
           <span className="ml-2">Google</span>
@@ -18,6 +20,7 @@ export const LoginSocialCard = () => {
         <button
           className="btn btn-soft sm:w-auto md:w-[clamp(10rem,45%,16rem)] max-w-full
                              h-[var(--ctrl-h)] text-[var(--font-sz)]"
+                             onClick={() => signIn('facebook')}
         >
           <FontAwesomeIcon icon={faFacebook} />
           <span className="ml-2">Facebook</span>

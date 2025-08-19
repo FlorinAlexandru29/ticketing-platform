@@ -1,11 +1,15 @@
-// lib/auth-options.ts
+// src/lib/auth-options.ts
 import type { NextAuthOptions } from "next-auth";
+import GoogleProvider from "next-auth/providers/google";
+import FacebookProvider from "next-auth/providers/facebook";
+import CredentialsProvider from "next-auth/providers/credentials";
 import SpotifyProvider from "next-auth/providers/spotify";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import type { JWT } from "next-auth/jwt";
+import { verifyPassword } from "@/lib/password";
 
-// (Optional) token refresh for Spotify — keeps accessToken valid
+// ---- Spotify token refresh helper ----
 async function refreshSpotifyAccessToken(token: JWT): Promise<JWT> {
   const body = new URLSearchParams({
     grant_type: "refresh_token",
@@ -43,6 +47,16 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
 
   providers: [
+    // --- OAuth providers ---
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      // allowDangerousEmailAccountLinking: true, // enable if you expect same email across providers but differing verification
+    }),
+    FacebookProvider({
+      clientId: process.env.FACEBOOK_CLIENT_ID!,
+      clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
+    }),
     SpotifyProvider({
       clientId: process.env.SPOTIFY_CLIENT_ID!,
       clientSecret: process.env.SPOTIFY_CLIENT_SECRET!,
@@ -50,8 +64,45 @@ export const authOptions: NextAuthOptions = {
       authorization: {
         url: "https://accounts.spotify.com/authorize",
         params: {
-          scope: "user-read-email", // add more later (e.g., user-follow-read) if needed
+          scope: "user-read-email",
         },
+      },
+    }),
+
+    // --- Credentials (email/username + password via Credential table) ---
+    CredentialsProvider({
+      name: "Credentials",
+      credentials: {
+        identifier: { label: "Email or username", type: "text" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.identifier || !credentials?.password) return null;
+
+        const identifier = credentials.identifier.trim().toLowerCase();
+
+        const user = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { email: identifier },                // email (lowercased)
+              { username: credentials.identifier }, // username as typed (keep your chosen case policy)
+            ],
+          },
+          include: { credential: true },
+        });
+
+        const hash = user?.credential?.passwordHash;
+        if (!user || !hash) return null;
+
+        const valid = await verifyPassword(credentials.password, hash);
+        if (!valid) return null;
+
+        return {
+          id: user.id,
+          name: user.name ?? user.username ?? undefined,
+          email: user.email ?? undefined,
+          image: user.image ?? undefined,
+        };
       },
     }),
   ],
@@ -59,43 +110,51 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
 
   callbacks: {
-    // 1) ALWAYS send users to Home after auth flows
+    // Always send users to Home after auth flows (adjust if you want)
     async redirect({ baseUrl }) {
       return `${baseUrl}/`;
     },
 
-    // 2) Put Spotify tokens into the JWT and keep them fresh
+    // Put tokens into the JWT; only track refresh for Spotify
     async jwt({ token, account, user }) {
-      // Initial sign-in
+      // Initial sign-in with any provider
       if (account && user) {
-        return {
-          ...token,
-          accessToken: account.access_token,
-          refreshToken: account.refresh_token,
-          accessTokenExpires:
-            Number(Date.now()) + (account.expires_in ? Number(account.expires_in) * 1000 : 3600_000),
-        };
-      }
+        // Keep user id on token
+        token.sub = user.id;
 
-      // If we have a valid, unexpired token, use it
-      if (token.accessToken && token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
+        if (account.provider === "spotify") {
+          const expiresAtMs =
+            (account.expires_at ? account.expires_at * 1000 : Date.now()) ||
+            (account.expires_in ? Date.now() + Number(account.expires_in) * 1000 : Date.now() + 3600_000);
+
+          return {
+            ...token,
+            accessToken: account.access_token,
+            refreshToken: account.refresh_token,
+            accessTokenExpires: expiresAtMs,
+          };
+        }
+
+        // For Google/Facebook we don't need to store/refresh provider tokens by default
         return token;
       }
 
-      // Otherwise, refresh it (if we have a refresh token)
-      if (token.refreshToken) {
-        try {
-          return await refreshSpotifyAccessToken(token);
-        } catch {
-          // If refresh fails, force re-auth by clearing access token
-          return { ...token, accessToken: undefined, accessTokenExpires: 0 };
+      // Refresh Spotify token if present & expired
+      if (token.accessToken && token.accessTokenExpires && Date.now() >= token.accessTokenExpires) {
+        if (token.refreshToken) {
+          try {
+            return await refreshSpotifyAccessToken(token);
+          } catch {
+            // Force re-auth by clearing token
+            return { ...token, accessToken: undefined, accessTokenExpires: 0 };
+          }
         }
       }
 
       return token;
     },
 
-    // 3) Expose user.id and accessToken on the session for your components
+    // Expose user.id and accessToken on the session
     async session({ session, token }) {
       if (session.user && token.sub) session.user.id = token.sub as string;
       if (token.accessToken) (session as any).accessToken = token.accessToken as string;
@@ -105,12 +164,11 @@ export const authOptions: NextAuthOptions = {
 
   secret: process.env.NEXTAUTH_SECRET,
 
-  // TEMP: easier debugging
+  // Debugging (optional; remove in prod)
   debug: true,
-  pages: { error: "/auth/error" },
-    logger: {
+  pages: { error: "/auth/error", signIn: "/loginv2" },
+  logger: {
     error(code, metadata) {
-      // shows the exact error + details in Vercel "Functions" logs
       console.error("NextAuth ERROR:", code, metadata);
     },
     warn(code) {
