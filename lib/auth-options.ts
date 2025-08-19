@@ -166,7 +166,7 @@ export const authOptions: NextAuthOptions = {
 
   // Debugging (optional; remove in prod)
   debug: true,
-  pages: { error: "/auth/error", signIn: "/loginv2" },
+  pages: { error: "/auth/error", signIn: "/login" },
   logger: {
     error(code, metadata) {
       console.error("NextAuth ERROR:", code, metadata);
