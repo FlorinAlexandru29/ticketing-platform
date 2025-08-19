@@ -51,11 +51,13 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      // allowDangerousEmailAccountLinking: true, // enable if you expect same email across providers but differing verification
+      allowDangerousEmailAccountLinking: true, // enable if you expect same email across providers but differing verification
     }),
     FacebookProvider({
       clientId: process.env.FACEBOOK_CLIENT_ID!,
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
+      authorization: { params: { scope: 'email,public_profile' } },
+      allowDangerousEmailAccountLinking: true, // enable if you expect same email across providers but differing verification
     }),
     SpotifyProvider({
       clientId: process.env.SPOTIFY_CLIENT_ID!,
