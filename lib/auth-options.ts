@@ -9,6 +9,11 @@ import { prisma } from "@/lib/prisma";
 import type { JWT } from "next-auth/jwt";
 import { verifyPassword } from "@/lib/password";
 
+// ---- build a safe base URL once (dev + vercel) ----
+const appBaseUrl =
+  process.env.NEXTAUTH_URL
+  ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+
 // ---- Spotify token refresh helper ----
 async function refreshSpotifyAccessToken(token: JWT): Promise<JWT> {
   const body = new URLSearchParams({
@@ -38,7 +43,6 @@ async function refreshSpotifyAccessToken(token: JWT): Promise<JWT> {
     ...token,
     accessToken: data.access_token as string,
     accessTokenExpires: Date.now() + expiresInMs,
-    // Spotify may omit refresh_token on refresh; keep the old one
     refreshToken: (data.refresh_token as string) || (token.refreshToken as string),
   };
 }
@@ -47,17 +51,16 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
 
   providers: [
-    // --- OAuth providers ---
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      allowDangerousEmailAccountLinking: true, // enable if you expect same email across providers but differing verification
+      allowDangerousEmailAccountLinking: true,
     }),
     FacebookProvider({
       clientId: process.env.FACEBOOK_CLIENT_ID!,
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
-      authorization: { params: { scope: 'email,public_profile' } },
-      allowDangerousEmailAccountLinking: true, // enable if you expect same email across providers but differing verification
+      authorization: { params: { scope: "email,public_profile" } },
+      allowDangerousEmailAccountLinking: true,
     }),
     SpotifyProvider({
       clientId: process.env.SPOTIFY_CLIENT_ID!,
@@ -65,31 +68,22 @@ export const authOptions: NextAuthOptions = {
       allowDangerousEmailAccountLinking: true,
       authorization: {
         url: "https://accounts.spotify.com/authorize",
-        params: {
-          scope: "user-read-email",
-        },
+        params: { scope: "user-read-email" },
       },
     }),
 
-    // --- Credentials (email/username + password via Credential table) ---
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        identifier: { label: "Email or username", type: "text" },
-        password: { label: "Password", type: "password" },
+        identifier: { label: "Email", type: "text" }, // username removed from schema
+        password:   { label: "Password", type: "password" },
       },
       async authorize(credentials) {
         if (!credentials?.identifier || !credentials?.password) return null;
 
-        const identifier = credentials.identifier.trim().toLowerCase();
-
-        const user = await prisma.user.findFirst({
-          where: {
-            OR: [
-              { email: identifier },                // email (lowercased)
-              { username: credentials.identifier }, // username as typed (keep your chosen case policy)
-            ],
-          },
+        const email = credentials.identifier.trim().toLowerCase();
+        const user = await prisma.user.findUnique({
+          where: { email },
           include: { credential: true },
         });
 
@@ -101,7 +95,7 @@ export const authOptions: NextAuthOptions = {
 
         return {
           id: user.id,
-          name: user.name ?? user.username ?? undefined,
+          name: user.name ?? undefined,
           email: user.email ?? undefined,
           image: user.image ?? undefined,
         };
@@ -112,16 +106,31 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
 
   callbacks: {
-    // Always send users to Home after auth flows (adjust if you want)
-    async redirect({ baseUrl }) {
-      return `${baseUrl}/`;
+    async signIn({ user, account }) {
+      // Only gate credentials by email verification
+      if (account?.provider === "credentials") {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { email: true, emailVerified: true },
+        });
+
+        if (dbUser && !dbUser.emailVerified && dbUser.email) {
+          // Build an ABSOLUTE verify URL
+          const url = new URL("/verify", appBaseUrl);
+          url.searchParams.set("email", dbUser.email);
+          return url.toString();
+        }
+      }
+      return true;
     },
 
-    // Put tokens into the JWT; only track refresh for Spotify
+    // Always return an ABSOLUTE URL here as well
+    async redirect() {
+      return appBaseUrl + "/";
+    },
+
     async jwt({ token, account, user }) {
-      // Initial sign-in with any provider
       if (account && user) {
-        // Keep user id on token
         token.sub = user.id;
 
         if (account.provider === "spotify") {
@@ -137,17 +146,14 @@ export const authOptions: NextAuthOptions = {
           };
         }
 
-        // For Google/Facebook we don't need to store/refresh provider tokens by default
         return token;
       }
 
-      // Refresh Spotify token if present & expired
       if (token.accessToken && token.accessTokenExpires && Date.now() >= token.accessTokenExpires) {
         if (token.refreshToken) {
           try {
             return await refreshSpotifyAccessToken(token);
           } catch {
-            // Force re-auth by clearing token
             return { ...token, accessToken: undefined, accessTokenExpires: 0 };
           }
         }
@@ -156,28 +162,24 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
 
-    // Expose user.id and accessToken on the session
     async session({ session, token }) {
       if (session.user && token.sub) session.user.id = token.sub as string;
-      if (token.accessToken) (session as any).accessToken = token.accessToken as string;
+      if ((token as any).accessToken) (session as any).accessToken = (token as any).accessToken as string;
       return session;
     },
   },
 
   secret: process.env.NEXTAUTH_SECRET,
 
-  // Debugging (optional; remove in prod)
+  // For NextAuth v5 you can also add: trustHost: true
+  // (For v4, use AUTH_TRUST_HOST=true as an env var.)
+  // trustHost: true,
+
   debug: true,
   pages: { error: "/auth/error", signIn: "/login" },
   logger: {
-    error(code, metadata) {
-      console.error("NextAuth ERROR:", code, metadata);
-    },
-    warn(code) {
-      console.warn("NextAuth WARN:", code);
-    },
-    debug(code, metadata) {
-      console.log("NextAuth DEBUG:", code, metadata);
-    },
+    error(code, metadata) { console.error("NextAuth ERROR:", code, metadata); },
+    warn(code) { console.warn("NextAuth WARN:", code); },
+    debug(code, metadata) { console.log("NextAuth DEBUG:", code, metadata); },
   },
 };

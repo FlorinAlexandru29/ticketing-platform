@@ -5,11 +5,13 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")  // pooled
-  directUrl = env("DIRECT_URL")    // direct
+  url       = env("DATABASE_URL") // pooled
+  directUrl = env("DIRECT_URL") // direct
 }
 
-/* ---------- Enums ---------- */
+/**
+ * ---------- Enums ----------
+ */
 enum Role {
   USER
   HOST
@@ -22,7 +24,9 @@ enum HostVerificationStatus {
   REJECTED
 }
 
-/* ---------- NextAuth core tables ---------- */
+/**
+ * ---------- NextAuth core tables ----------
+ */
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -30,48 +34,46 @@ model User {
   emailVerified DateTime?
   image         String?
 
-  // NEW: optional unique username for credentials login
-  username      String?   @unique
-
   // NEW: 1-1 local-auth record (separate from OAuth)
-  credential    Credential?
+  credential            Credential?
+  emailVerificationCode EmailVerificationCode?
 
   // Existing domain fields
-  birthdate     DateTime?
-  role          Role      @default(USER)
-  hostProfile   HostProfile?
+  birthdate   DateTime?
+  role        Role         @default(USER)
+  hostProfile HostProfile?
 
-  accounts      Account[]
-  sessions      Session[]
+  accounts Account[]
+  sessions Session[]
 
   // domain relations
-  tickets       Ticket[]
-  events        Event[]   @relation("HostEvents")
+  tickets Ticket[]
+  events  Event[]  @relation("HostEvents")
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Account {
-  id                String  @id @default(cuid())
+  id                String @id @default(cuid())
   userId            String
   type              String
   provider          String
   providerAccountId String
 
   // token fields expected by NextAuth Prisma adapter
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
+  refresh_token String?
+  access_token  String?
+  expires_at    Int?
+  token_type    String?
+  scope         String?
+  id_token      String?
+  session_state String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // NOTE: do NOT mark userId as @unique; a user can have many accounts
 
   @@unique([provider, providerAccountId])
-  // NOTE: do NOT mark userId as @unique; a user can have many accounts
 }
 
 model Session {
@@ -83,15 +85,22 @@ model Session {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
+model EmailVerificationCode {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  codeHash   String // SHA-256 of the 6-digit code
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  attempts   Int      @default(0)
+  lastSentAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([identifier, token])
+  @@index([expiresAt])
 }
 
-/* ---------- Local credentials (email/username + password) ---------- */
+/**
+ * ---------- Local credentials (email/username + password) ----------
+ */
 model Credential {
   id           String   @id @default(cuid())
   userId       String   @unique
@@ -101,38 +110,42 @@ model Credential {
   updatedAt    DateTime @updatedAt
 }
 
-/* ---------- Host profile ---------- */
+/**
+ * ---------- Host profile ----------
+ */
 model HostProfile {
-  id               String                 @id @default(cuid())
-  userId           String                 @unique
-  user             User                   @relation(fields: [userId], references: [id])
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
 
-  displayName      String
-  website          String?
-  contactEmail     String?
-  phone            String?
+  displayName  String
+  website      String?
+  contactEmail String?
+  phone        String?
 
-  verification     HostVerificationStatus @default(PENDING)
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
+  verification HostVerificationStatus @default(PENDING)
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
 }
 
-/* ---------- Domain models ---------- */
+/**
+ * ---------- Domain models ----------
+ */
 model Event {
   id          String   @id @default(cuid())
   title       String
-  normalized  String   // lowercased/trimmed title for dedupe
+  normalized  String // lowercased/trimmed title for dedupe
   description String
   date        DateTime
   venue       String
   city        String
 
-  hostId      String
-  host        User     @relation("HostEvents", fields: [hostId], references: [id])
+  hostId String
+  host   User   @relation("HostEvents", fields: [hostId], references: [id])
 
-  tickets     Ticket[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  tickets   Ticket[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // prevent exact duplicates: same title (normalized) + date + venue + city
   @@unique([normalized, date, venue, city])
@@ -142,8 +155,8 @@ model Ticket {
   id        String   @id @default(cuid())
   eventId   String
   ownerId   String
-  price     Int      // store in cents
-  currency  String   // "RON","EUR"
+  price     Int // store in cents
+  currency  String // "RON","EUR"
   createdAt DateTime @default(now())
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)

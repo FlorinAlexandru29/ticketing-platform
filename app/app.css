@@ -8,3 +8,7 @@
   --color-btncarousel:  oklch(0.6925 0.0031 264.54);
   --btn-focus-scale: 300;
 }
+
+@utility validator-hint {
+  @apply mt-0;
+}

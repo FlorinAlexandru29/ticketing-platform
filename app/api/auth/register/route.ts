@@ -3,43 +3,63 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/lib/password';
+import { issueVerificationCode } from '@/lib/verify';
 
 const RegisterSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  username: z.string().min(3).max(30).regex(/^[A-Za-z][A-Za-z0-9-]*$/).optional(),
+  email: z.string().email({ message: 'Please enter a valid email address.' }),
+  password: z.string().min(8, 'Password must be at least 8 characters.'),
+  name: z.string().min(3).max(30).optional(),
 });
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { email, password, username } = RegisterSchema.parse(body);
+    const { email, password, name } = RegisterSchema.parse(body);
     const lower = email.toLowerCase();
-
-    // Ensure email/username free
-    const existing = await prisma.user.findFirst({
-      where: { OR: [{ email: lower }, username ? { username } : undefined].filter(Boolean) as any },
-      select: { id: true },
-    });
-    if (existing) {
-      return NextResponse.json({ error: 'Email or username already in use' }, { status: 409 });
-    }
-
     const passwordHash = await hashPassword(password);
 
+    const existing = await prisma.user.findUnique({
+      where: { email: lower },
+      select: { id: true, emailVerified: true, credential: { select: { id: true } } },
+    });
+
+    if (existing) {
+      if (existing.credential) {
+        return NextResponse.json(
+          { error: 'An account with this email already exists.' },
+          { status: 409 }
+        );
+      }
+      // OAuth-only user — attach credentials + send first code now
+      await prisma.credential.create({ data: { userId: existing.id, passwordHash } });
+      await issueVerificationCode(existing.id, lower);
+      return NextResponse.json(
+        { user: { id: existing.id, email: lower, name: name ?? null }, attachedCredential: true },
+        { status: 201 }
+      );
+    }
+
+    // Brand-new user
     const user = await prisma.$transaction(async (tx) => {
-      const u = await tx.user.create({
-        data: { email: lower, username: username ?? null },
-      });
-      await tx.credential.create({
-        data: { userId: u.id, passwordHash },
-      });
+      const u = await tx.user.create({ data: { email: lower, name: name ?? null } });
+      await tx.credential.create({ data: { userId: u.id, passwordHash } });
       return u;
     });
 
-    return NextResponse.json({ user: { id: user.id, email: user.email, username: user.username } }, { status: 201 });
-  } catch (err: any) {
-    const msg = err?.issues?.[0]?.message ?? err?.message ?? 'Invalid request';
-    return NextResponse.json({ error: msg }, { status: 400 });
+    await issueVerificationCode(user.id, lower);
+
+    return NextResponse.json(
+      { user: { id: user.id, email: user.email, name: user.name } },
+      { status: 201 }
+    );
+  } catch (err: unknown) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid form data', fields: err.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+    const message = err instanceof Error ? err.message : 'Something went wrong';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
