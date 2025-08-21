@@ -46,6 +46,7 @@ function VerifyContent() {
     const normalized =
       err === 'LinkExpired'      ? 'Verification link expired. Redirecting…'
     : err === 'AlreadyVerified'  ? 'Email already verified. Redirecting…'
+    : err === 'expired'         ? 'Verification link expired. Redirecting…'
     : `${err}. Redirecting…`;
     setMsg(normalized);
     setMsgKind('error'); // RED
