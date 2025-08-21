@@ -9,28 +9,47 @@ function VerifyContent() {
   const router = useRouter();
 
   const email   = sp.get('email')   || '';
-  const success = sp.get('success');
-  const err     = sp.get('error');
+  const success = sp.get('success');        // e.g. ?success=1 from confirm link
+  const errRaw  = sp.get('error');          // e.g. ?error=LinkExpired or AlreadyVerified
+  const err     = errRaw ? decodeURIComponent(errRaw) : null;
 
-  const [code, setCode]       = useState('');
-  const [msg, setMsg]         = useState<string | null>(err ? decodeURIComponent(err) : null);
-  const [pending, setPending] = useState(false);
+  const [code, setCode]         = useState('');
+  const [msg, setMsg]           = useState<string | null>(err);
+  const [pending, setPending]   = useState(false);
   const [cooldown, setCooldown] = useState(0);
 
+  // If no email param, bounce to /login
   useEffect(() => {
     if (!email) router.replace('/login');
   }, [email, router]);
 
+  // Cooldown ticker
   useEffect(() => {
-    if (cooldown > 0) {
-      const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
-      return () => clearTimeout(t);
-    }
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
   }, [cooldown]);
 
+  // Handle success (from magic link) -> show short message then go home
   useEffect(() => {
-    if (success) setMsg('Email verified! You can now log in.');
-  }, [success]);
+    if (!success) return;
+    setMsg('Email verified! Redirecting…');
+    const t = setTimeout(() => router.replace('/'), 1200);
+    return () => clearTimeout(t);
+  }, [success, router]);
+
+  // Handle error from magic link -> show message then go home
+  useEffect(() => {
+    if (!err) return;
+    // You can map specific codes to friendlier text:
+    const normalized =
+      err === 'LinkExpired' ? 'Verification link expired. Redirecting…'
+    : err === 'AlreadyVerified' ? 'Email already verified. Redirecting…'
+    : `${err}. Redirecting…`;
+    setMsg(normalized);
+    const t = setTimeout(() => router.replace('/'), 2000);
+    return () => clearTimeout(t);
+  }, [err, router]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,8 +65,9 @@ function VerifyContent() {
       if (!res.ok) {
         setMsg(data?.error || 'Invalid code');
       } else {
-        // redirect to login (or your auto-login flow will handle from here)
-        router.replace('/login?verified=1');
+        // Your server already performs auto-sign-in on success.
+        // Go straight home.
+        router.replace('/');
       }
     } catch {
       setMsg('Network error. Try again.');
