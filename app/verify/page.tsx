@@ -13,10 +13,11 @@ function VerifyContent() {
   const errRaw  = sp.get('error');          // e.g. ?error=LinkExpired or AlreadyVerified
   const err     = errRaw ? decodeURIComponent(errRaw) : null;
 
-  const [code, setCode]         = useState('');
-  const [msg, setMsg]           = useState<string | null>(err);
-  const [pending, setPending]   = useState(false);
-  const [cooldown, setCooldown] = useState(0);
+  const [code, setCode]           = useState('');
+  const [msg, setMsg]             = useState<string | null>(err);
+  const [msgKind, setMsgKind]     = useState<'info' | 'error' | null>(err ? 'error' : null);
+  const [pending, setPending]     = useState(false);
+  const [cooldown, setCooldown]   = useState(0);
 
   // If no email param, bounce to /login
   useEffect(() => {
@@ -30,23 +31,24 @@ function VerifyContent() {
     return () => clearTimeout(t);
   }, [cooldown]);
 
-  // Handle success (from magic link) -> show short message then go home
+  // Success via magic link -> show blue banner then go home
   useEffect(() => {
     if (!success) return;
     setMsg('Email verified! Redirecting…');
+    setMsgKind('info'); // BLUE
     const t = setTimeout(() => router.replace('/'), 1200);
     return () => clearTimeout(t);
   }, [success, router]);
 
-  // Handle error from magic link -> show message then go home
+  // Error via magic link -> show red banner then go home
   useEffect(() => {
     if (!err) return;
-    // You can map specific codes to friendlier text:
     const normalized =
-      err === 'LinkExpired' ? 'Verification link expired. Redirecting…'
-    : err === 'AlreadyVerified' ? 'Email already verified. Redirecting…'
+      err === 'LinkExpired'      ? 'Verification link expired. Redirecting…'
+    : err === 'AlreadyVerified'  ? 'Email already verified. Redirecting…'
     : `${err}. Redirecting…`;
     setMsg(normalized);
+    setMsgKind('error'); // RED
     const t = setTimeout(() => router.replace('/'), 2000);
     return () => clearTimeout(t);
   }, [err, router]);
@@ -54,6 +56,7 @@ function VerifyContent() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
+    setMsgKind(null);
     setPending(true);
     try {
       const res = await fetch('/api/auth/verify/check', {
@@ -64,13 +67,16 @@ function VerifyContent() {
       const data = await res.json();
       if (!res.ok) {
         setMsg(data?.error || 'Invalid code');
+        setMsgKind('error'); // RED
       } else {
-        // Your server already performs auto-sign-in on success.
-        // Go straight home.
+        // Server performs auto-sign-in on success; go home.
+        setMsg('Verified! Redirecting…');
+        setMsgKind('info'); // BLUE
         router.replace('/');
       }
     } catch {
       setMsg('Network error. Try again.');
+      setMsgKind('error'); // RED
     } finally {
       setPending(false);
     }
@@ -78,6 +84,7 @@ function VerifyContent() {
 
   async function resend() {
     setMsg(null);
+    setMsgKind(null);
     try {
       const res = await fetch('/api/auth/verify/send', {
         method: 'POST',
@@ -87,14 +94,22 @@ function VerifyContent() {
       const data = await res.json();
       if (!res.ok) {
         setMsg(data?.error || 'Could not resend code.');
+        setMsgKind('error'); // RED
       } else {
         setMsg('Code resent. Check your email.');
+        setMsgKind('info'); // BLUE
         setCooldown(30);
       }
     } catch {
       setMsg('Network error. Try again.');
+      setMsgKind('error'); // RED
     }
   }
+
+  const alertClass =
+    msgKind === 'error' ? 'alert alert-error' :
+    msgKind === 'info'  ? 'alert alert-info'  :
+    'alert'; // fallback (shouldn’t happen)
 
   return (
     <main className="min-h-svh flex items-center justify-center p-4 bg-base-200">
@@ -106,7 +121,7 @@ function VerifyContent() {
           </p>
 
           {msg && (
-            <div role="alert" className="alert alert-info mt-2">
+            <div role="alert" className={`${alertClass} mt-2`}>
               <span>{msg}</span>
             </div>
           )}
