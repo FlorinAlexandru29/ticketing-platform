@@ -8,7 +8,7 @@ import CreateAccountCard from '@/components/auth/cards/LoginCard';
 import LoginCard from '@/components/auth/cards/CreateAccountCard';
 
 
-export default function LoginPageV2() {
+export default function LoginPage() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signup');
   const [dock, setDock] = useState<'left' | 'right'>('right');
   const [showPwd, setShowPwd] = useState(false);

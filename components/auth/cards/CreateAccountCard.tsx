@@ -6,69 +6,74 @@ import type { AuthCardProps } from '@/components/auth/cards/types';
 import { signIn } from 'next-auth/react';
 
 export default function CreateAccountCard({ showPwd, setShowPwd, setMode }: AuthCardProps) {
-  const [name, setName]       = useState('');
-  const [email, setEmail]     = useState('');
+  const [name, setName]         = useState('');
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [pending, setPending]   = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
-  e.preventDefault();
-  setErrorMsg(null);
-  setPending(true);
+    e.preventDefault();
+    setErrorMsg(null);
+    setPending(true);
 
-  try {
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password }),
-    });
+    try {
+      // create user
+      const resp = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+      });
 
-    if (!res.ok) {
-      // surface the real message from the API
-      let msg = 'Registration failed. Please try again.';
-      try {
-        const data = await res.json();
-        if (data?.error) msg = data.error;
-      } catch {
-        // ignore JSON parse errors
-      }
-      setErrorMsg(msg);
-      return;
-    }
+      if (!resp.ok) {
+        let msg = 'Registration failed. Please try again.';
         try {
-        sessionStorage.setItem('signup:email', email.trim().toLowerCase());
-        sessionStorage.setItem('signup:pw', password);
+          const data = await resp.json();
+          if (data?.error) msg = data.error;
         } catch {}
+        setErrorMsg(msg);
+        return;
+      }
 
-    // auto sign-in after successful registration
-    const login = await signIn('credentials', {
-      redirect: false,
-      identifier: email.trim().toLowerCase(),
-      password,
-    });
+      // proactively send the first code (so they don't need to press "Resend")
+      try {
+        await fetch('/api/auth/verify/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+      } catch {}
 
-    // If NextAuth wants a verify step, follow it
-    if (login?.url && login.url.includes('/verify')) {
-      window.location.href = login.url; // e.g. /verify?email=...
-      return;
+      // sign-in
+      const login = await signIn('credentials', {
+        redirect: false,
+        identifier: email.trim().toLowerCase(),
+        password,
+      });
+
+      // If NextAuth wants verify → stash creds under ONE key and go to /verify
+      if (login?.url && login.url.includes('/verify')) {
+        sessionStorage.setItem('postVerifyLogin', JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+        }));
+        window.location.href = login.url;
+        return;
+      }
+
+      if (login?.error) {
+        setErrorMsg(login.error || 'Could not sign in.');
+        return;
+      }
+
+      window.location.href = '/my-profile';
+    } catch (err) {
+      console.error('Register/sign-in failed:', err);
+      setErrorMsg('Network error. Please try again.');
+    } finally {
+      setPending(false);
     }
-
-    if (login?.error) {
-      setErrorMsg(login.error || 'Could not sign in.');
-      return;
-    }
-
-    // Success
-    window.location.href = '/my-profile';
-  } catch (err) {
-    // this is a true network/runtime failure
-    console.error('Register/sign-in failed:', err);
-    setErrorMsg('Network error. Please try again.');
-  } finally {
-    setPending(false);
   }
-}
 
   return (
     <>
@@ -78,7 +83,6 @@ export default function CreateAccountCard({ showPwd, setShowPwd, setMode }: Auth
 
       <form onSubmit={onSubmit} className="flex-1 min-h-0 flex flex-col">
         <div className="input-group flex flex-col h-full w-full items-center mt-0 sm:mt-[calc(var(--gap-y)*2)] gap-[var(--gap-y)]">
-
           <label className="input validator h-[var(--ctrl-h)] text-[var(--font-sz)]">
             <FontAwesomeIcon icon={faUser} />
             <input
@@ -117,7 +121,6 @@ export default function CreateAccountCard({ showPwd, setShowPwd, setMode }: Auth
 
           <label className="input validator h-[var(--ctrl-h)] text-[var(--font-sz)] items-center gap-2">
             <FontAwesomeIcon icon={faKey} />
-
             <input
               type={showPwd ? 'text' : 'password'}
               className="grow min-w-0"
@@ -129,12 +132,7 @@ export default function CreateAccountCard({ showPwd, setShowPwd, setMode }: Auth
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
             />
-
-            {/* Eye toggle with tooltip */}
-            <div
-              className="tooltip tooltip-left"
-              data-tip={showPwd ? 'Hide password' : 'Show password'}
-            >
+            <div className="tooltip tooltip-left" data-tip={showPwd ? 'Hide password' : 'Show password'}>
               <button
                 type="button"
                 onClick={() => setShowPwd(v => !v)}
@@ -142,7 +140,8 @@ export default function CreateAccountCard({ showPwd, setShowPwd, setMode }: Auth
                 aria-label={showPwd ? 'Hide password' : 'Show password'}
                 className="btn btn-ghost rounded-2xl !min-h-0 h-[calc(var(--ctrl-h)-0.4rem)] w-[calc(var(--ctrl-h)-0.4rem)] p-0"
               >
-                <FontAwesomeIcon icon={showPwd ? faEyeSlash : faEye} />
+                <FontAwesomeIcon icon={faEyeSlash} style={{ display: showPwd ? 'inline' : 'none' }} />
+                <FontAwesomeIcon icon={faEye} style={{ display: showPwd ? 'none' : 'inline' }} />
               </button>
             </div>
           </label>
@@ -154,7 +153,6 @@ export default function CreateAccountCard({ showPwd, setShowPwd, setMode }: Auth
             At least one special character
           </div>
 
-          {/* Inline error banner */}
           {errorMsg && (
             <div
               role="alert"
@@ -167,7 +165,7 @@ export default function CreateAccountCard({ showPwd, setShowPwd, setMode }: Auth
           )}
         </div>
 
-        <div className="flex flex-col shrink-0 h-[var(--oauth-row-h)*1.5] gap-0 sm:gap-3 justify-center items-center w-full min-w-0 mb-0 sm:mb-2">
+        <div className="flex flex-col shrink-0 h-[var(--oauth-row-h)*1.5] gap-0 sm:gap-3 justify-center items-center w/full min-w-0 mb-0 sm:mb-2">
           <button
             className="link link-primary text-center mt-0 sm:mt-2 text-[calc(var(--font-sz)*0.9)] md:text-[calc(var(--font-sz)*1.1)]"
             onClick={(e) => { e.preventDefault(); setMode('signin'); }}
@@ -182,14 +180,7 @@ export default function CreateAccountCard({ showPwd, setShowPwd, setMode }: Auth
                        text-[calc(var(--font-sz)*0.9)] md:text-[calc(var(--font-sz)*1.1)]
                        inline-flex items-center justify-center gap-2"
           >
-            {pending ? (
-              <>
-                <span>Signing up</span>
-                <FontAwesomeIcon icon={faSpinner} spin />
-              </>
-            ) : (
-              'Sign Up'
-            )}
+            {pending ? (<><span>Signing up</span><FontAwesomeIcon icon={faSpinner} spin /></>) : 'Sign Up'}
           </button>
         </div>
       </form>

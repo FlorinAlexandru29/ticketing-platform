@@ -1,55 +1,93 @@
-// app/verify/page.tsx
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 
 function VerifyContent() {
   const sp = useSearchParams();
   const router = useRouter();
 
-  const email   = sp.get('email')   || '';
-  const success = sp.get('success');        // e.g. ?success=1 from confirm link
-  const errRaw  = sp.get('error');          // e.g. ?error=LinkExpired or AlreadyVerified
+  const email   = sp.get('email') || '';
+  const success = sp.get('success');  // from magic link
+  const errRaw  = sp.get('error');
   const err     = errRaw ? decodeURIComponent(errRaw) : null;
 
-  const [code, setCode]           = useState('');
-  const [msg, setMsg]             = useState<string | null>(err);
-  const [msgKind, setMsgKind]     = useState<'info' | 'error' | null>(err ? 'error' : null);
-  const [pending, setPending]     = useState(false);
-  const [cooldown, setCooldown]   = useState(0);
+  const [code, setCode]         = useState('');
+  const [msg, setMsg]           = useState<string | null>(err);
+  const [msgKind, setMsgKind]   = useState<'info' | 'error' | null>(err ? 'error' : null);
+  const [pending, setPending]   = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
-  // If no email param, bounce to /login
   useEffect(() => {
     if (!email) router.replace('/login');
   }, [email, router]);
 
-  // Cooldown ticker
   useEffect(() => {
     if (cooldown <= 0) return;
     const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
     return () => clearTimeout(t);
   }, [cooldown]);
 
-  // Success via magic link -> show blue banner then go home
+  async function tryAutoSignIn(): Promise<boolean> {
+    try {
+      // Prefer the unified key
+      let stash: { email?: string; password?: string } | null = null;
+
+      const unified = sessionStorage.getItem('postVerifyLogin');
+      if (unified) stash = JSON.parse(unified);
+
+      // Back-compat: older keys if they exist
+      if (!stash) {
+        const e = sessionStorage.getItem('signup:email');
+        const p = sessionStorage.getItem('signup:pw');
+        if (e && p) stash = { email: e, password: p };
+      }
+
+      if (!stash?.email || !stash?.password) return false;
+      if (stash.email.toLowerCase() !== email.toLowerCase()) return false;
+
+      await signIn('credentials', {
+        redirect: true,
+        identifier: stash.email,
+        password: stash.password,
+        callbackUrl: '/', // land here after
+      });
+
+      sessionStorage.removeItem('postVerifyLogin');
+      sessionStorage.removeItem('signup:email');
+      sessionStorage.removeItem('signup:pw');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   useEffect(() => {
     if (!success) return;
-    setMsg('Email verified! Redirecting…');
-    setMsgKind('info'); // BLUE
-    const t = setTimeout(() => router.replace('/'), 1200);
-    return () => clearTimeout(t);
-  }, [success, router]);
+    (async () => {
+      const ok = await tryAutoSignIn();
+      if (ok) return; // next-auth navigates
+      setMsg('Email verified! Redirecting…');
+      setMsgKind('info');
+      const t = setTimeout(() => router.replace('/'), 1200);
+      return () => clearTimeout(t);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [success]);
 
-  // Error via magic link -> show red banner then go home
   useEffect(() => {
     if (!err) return;
+    sessionStorage.removeItem('postVerifyLogin');
+    sessionStorage.removeItem('signup:email');
+    sessionStorage.removeItem('signup:pw');
+
     const normalized =
-      err === 'LinkExpired'      ? 'Verification link expired. Redirecting…'
-    : err === 'AlreadyVerified'  ? 'Email already verified. Redirecting…'
-    : err === 'expired'         ? 'Verification link expired. Redirecting…'
+      err === 'LinkExpired'     ? 'Verification link expired. Redirecting…'
+    : err === 'AlreadyVerified' ? 'Email already verified. Redirecting…'
     : `${err}. Redirecting…`;
     setMsg(normalized);
-    setMsgKind('error'); // RED
+    setMsgKind('error');
     const t = setTimeout(() => router.replace('/'), 2000);
     return () => clearTimeout(t);
   }, [err, router]);
@@ -68,16 +106,17 @@ function VerifyContent() {
       const data = await res.json();
       if (!res.ok) {
         setMsg(data?.error || 'Invalid code');
-        setMsgKind('error'); // RED
+        setMsgKind('error');
       } else {
-        // Server performs auto-sign-in on success; go home.
+        const ok = await tryAutoSignIn();
+        if (ok) return; // next-auth redirects
         setMsg('Verified! Redirecting…');
-        setMsgKind('info'); // BLUE
+        setMsgKind('info');
         router.replace('/');
       }
     } catch {
       setMsg('Network error. Try again.');
-      setMsgKind('error'); // RED
+      setMsgKind('error');
     } finally {
       setPending(false);
     }
@@ -95,22 +134,21 @@ function VerifyContent() {
       const data = await res.json();
       if (!res.ok) {
         setMsg(data?.error || 'Could not resend code.');
-        setMsgKind('error'); // RED
+        setMsgKind('error');
       } else {
         setMsg('Code resent. Check your email.');
-        setMsgKind('info'); // BLUE
+        setMsgKind('info');
         setCooldown(30);
       }
     } catch {
       setMsg('Network error. Try again.');
-      setMsgKind('error'); // RED
+      setMsgKind('error');
     }
   }
 
   const alertClass =
     msgKind === 'error' ? 'alert alert-error' :
-    msgKind === 'info'  ? 'alert alert-info'  :
-    'alert'; // fallback (shouldn’t happen)
+    msgKind === 'info'  ? 'alert alert-info'  : 'alert';
 
   return (
     <main className="min-h-svh flex items-center justify-center p-4 bg-base-200">

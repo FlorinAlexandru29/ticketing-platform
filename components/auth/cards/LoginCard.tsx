@@ -16,23 +16,23 @@ export default function LoginCard({ showPwd, setShowPwd, setMode }: AuthCardProp
     setErrorMsg(null);
     setPending(true);
 
-    // Clear any stale values first
-    sessionStorage.removeItem('signup:email');
-    sessionStorage.removeItem('signup:pw');
-
     try {
+      // Always clear & use ONE stash key
+      sessionStorage.removeItem('postVerifyLogin');
+
       const res = await signIn('credentials', {
         redirect: false,
         identifier: email.trim().toLowerCase(),
         password,
       });
 
-      // If NextAuth signIn callback returned a redirect to /verify,
-      // stash creds so the verify page can auto-login after success.
+      // If NextAuth requires verify, stash creds then go to /verify
       if (res?.url && res.url.includes('/verify')) {
-        sessionStorage.setItem('signup:email', email.trim().toLowerCase());
-        sessionStorage.setItem('signup:pw', password);
-        window.location.href = res.url; // go to /verify?email=...
+        sessionStorage.setItem('postVerifyLogin', JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+        }));
+        window.location.href = res.url;
         return;
       }
 
@@ -79,7 +79,7 @@ export default function LoginCard({ showPwd, setShowPwd, setMode }: AuthCardProp
               <button
                 type="button"
                 className="link link-error text-center mt-0 sm:mt-2 text-[calc(var(--font-sz)*0.9)] md:text-[calc(var(--font-sz)*1.1)]"
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); /* router.push('/forgot-password') */ }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 onPointerDown={(e) => e.preventDefault()}
                 onMouseDown={(e) => e.preventDefault()}
                 onTouchStart={(e) => e.preventDefault()}
