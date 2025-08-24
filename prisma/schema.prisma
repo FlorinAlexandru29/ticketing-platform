@@ -34,19 +34,23 @@ model User {
   emailVerified DateTime?
   image         String?
 
-  // NEW: 1-1 local-auth record (separate from OAuth)
+  // DATE only (no time zone drift)
+  birthdate     DateTime? @db.Date
+
+  // NEW: location
+  countryCode   String?   @db.VarChar(2) // ISO-3166 alpha-2, e.g., "RO"
+  country       String?                 // "Romania"
+  city          String?                 // "Cluj-Napoca"
+
+  role        Role       @default(USER)
+  hostProfile HostProfile?
+
   credential            Credential?
   emailVerificationCode EmailVerificationCode?
-
-  // Existing domain fields
-  birthdate   DateTime?
-  role        Role         @default(USER)
-  hostProfile HostProfile?
 
   accounts Account[]
   sessions Session[]
 
-  // domain relations
   tickets Ticket[]
   events  Event[]  @relation("HostEvents")
 
@@ -154,11 +158,11 @@ model Event {
 model Ticket {
   id        String   @id @default(cuid())
   eventId   String
-  ownerId   String
-  price     Int // store in cents
-  currency  String // "RON","EUR"
-  createdAt DateTime @default(now())
+  ownerId   String?   // ⬅️ make optional
+  price     Int
+  currency  String
+  createdAt DateTime  @default(now())
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  owner User  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner User? @relation(fields: [ownerId], references: [id], onDelete: SetNull) // ⬅️ SetNull
 }

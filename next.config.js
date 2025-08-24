@@ -29,6 +29,11 @@ const nextConfig = {
         hostname: 'lh3.googleusercontent.com', // some FB avatars resolve here
         pathname: '/**',
       },
+      {
+        protocol: "https",
+        hostname: "gncumnhjfspuyyngrxxl.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
     ],
 
     // Or Option 2: simple list (less flexible)
