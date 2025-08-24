@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { getSpotifyProfile } from '@/lib/spotify';
 import Navbar from '@/components/Navbar';
-import ProfileCard from '@/components/my-profile/ProfileCard';
+import ProfilePage from '@/components/profile/ProfilePage';
 import TicketsSection from '@/components/my-profile/TicketsSection';
 import MyProfilePageCard from '@/components/my-profile/MyProfilePageCard';
 
@@ -46,7 +46,7 @@ export default async function MyProfilePage() {
       <Navbar />
 
       <MyProfilePageCard
-        left={<ProfileCard session={session} spotify={spotify} />}
+        left={<ProfilePage session={session} spotify={spotify} />}
         right={<TicketsSection />}
       />
     </main>
