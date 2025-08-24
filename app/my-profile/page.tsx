@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { getSpotifyProfile } from '@/lib/spotify';
+import { redirect } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import ProfilePage from '@/components/profile/ProfilePage';
 import TicketsSection from '@/components/my-profile/TicketsSection';
@@ -11,20 +12,11 @@ export const dynamic = 'force-dynamic'; // keeps this request-scoped (avoids ear
 export default async function MyProfilePage() {
   // ✅ Server-side session fetch (safe)
   const session = await getServerSession(authOptions);
-
   if (!session?.user) {
-    return (
-      <main className="p-8 max-w-3xl mx-auto">
-        <h1 className="text-2xl font-semibold">My Profile</h1>
-        <p className="mt-4 opacity-80">You need to sign in to view your profile.</p>
-        <a
-          href="/api/auth/signin"
-          className="inline-block mt-4 px-4 py-2 rounded-xl border shadow-sm"
-        >
-          Sign in
-        </a>
-      </main>
-    );
+    // Server-side redirect
+    // Import redirect from next/navigation at the top of the file:
+    // import { redirect } from 'next/navigation';
+    redirect('/');
   }
 
   // ✅ Server-side Spotify fetch (no client-side promises in render)
