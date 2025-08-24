@@ -29,7 +29,6 @@ async function tryUpsertBirthdateFromProvider(params: {
     let iso: string | null = null;
 
     if (provider === "google") {
-      // Needs scope: https://www.googleapis.com/auth/user.birthday.read and People API enabled
       const res = await fetch("https://people.googleapis.com/v1/people/me?personFields=birthdays", {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
@@ -44,7 +43,6 @@ async function tryUpsertBirthdateFromProvider(params: {
         }
       }
     } else if (provider === "facebook") {
-      // Needs 'user_birthday' permission (requires app review)
       const res = await fetch("https://graph.facebook.com/v19.0/me?fields=birthday", {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
@@ -103,34 +101,27 @@ async function refreshSpotifyAccessToken(token: JWT): Promise<JWT> {
 
 /**
  * Merge “oldUserId” into “targetUserId” when a provider account (e.g. Spotify) is
- * already linked to a different user. The steps:
- * - Reassign domain data (tickets, hosted events)
- * - Move/cleanup HostProfile to avoid FK issues
- * - Delete the conflicting Account row so the unique constraint is clear
- * - Delete the old user (cascades sessions/accounts/credentials/etc.)
+ * already linked to a different user.
  */
 async function mergeUsersOnLinkedAccount(params: {
-  targetUserId: string;            // currently logged-in user (who is linking)
-  provider: string;                // 'spotify'
-  providerAccountId: string;       // spotify user id
+  targetUserId: string;
+  provider: string;
+  providerAccountId: string;
 }) {
   const { targetUserId, provider, providerAccountId } = params;
 
-  // Is there an existing account for this provider identity?
   const existingAcc = await prisma.account.findUnique({
     where: { provider_providerAccountId: { provider, providerAccountId } },
     select: { userId: true },
   });
-  if (!existingAcc) return; // nothing to merge
+  if (!existingAcc) return;
   const oldUserId = existingAcc.userId;
-  if (oldUserId === targetUserId) return; // already linked to the same user
+  if (oldUserId === targetUserId) return;
 
   await prisma.$transaction(async (tx) => {
-    // Reassign domain data you care about
     await tx.ticket.updateMany({ where: { ownerId: oldUserId }, data: { ownerId: targetUserId } });
     await tx.event.updateMany({ where: { hostId: oldUserId }, data: { hostId: targetUserId } });
 
-    // Host profile: move if target has none, else delete the old one
     const oldHP = await tx.hostProfile.findUnique({ where: { userId: oldUserId } });
     if (oldHP) {
       const newHP = await tx.hostProfile.findUnique({ where: { userId: targetUserId } });
@@ -141,12 +132,10 @@ async function mergeUsersOnLinkedAccount(params: {
       }
     }
 
-    // Remove the conflicting provider account row to clear the unique constraint
     await tx.account.delete({
       where: { provider_providerAccountId: { provider, providerAccountId } },
     });
 
-    // Finally, delete the old user. (Sessions/accounts/credentials cascade.)
     await tx.user.delete({ where: { id: oldUserId } });
   });
 }
@@ -159,14 +148,12 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      // Optional: include people API scope to auto-import birthday
       authorization: { params: { scope: "openid email profile https://www.googleapis.com/auth/user.birthday.read" } },
       allowDangerousEmailAccountLinking: true,
     }),
     FacebookProvider({
       clientId: process.env.FACEBOOK_CLIENT_ID!,
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
-      // Optional: include user_birthday permission
       authorization: { params: { scope: "email,public_profile,user_birthday" } },
       allowDangerousEmailAccountLinking: true,
     }),
@@ -187,16 +174,24 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.identifier || !credentials?.password) return null;
+
         const email = credentials.identifier.trim().toLowerCase();
         const user = await prisma.user.findUnique({
           where: { email },
-          include: { credential: true },
+          select: { id: true, name: true, email: true, image: true, credential: true, emailVerified: true },
         });
+
         const hash = user?.credential?.passwordHash;
         if (!user || !hash) return null;
 
         const valid = await verifyPassword(credentials.password, hash);
         if (!valid) return null;
+
+        // ⛔ Block session creation until verified
+        if (!user.emailVerified) {
+          // Client can check for this exact message via signIn(..., { redirect: false })
+          throw new Error("VerifyEmail");
+        }
 
         return {
           id: user.id,
@@ -210,17 +205,16 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async signIn({ user, account }) {
-      // If the user is adding Spotify while already authenticated, merge if that Spotify is tied elsewhere
+      // Merge Spotify if linking and it exists on another user
       if (account?.provider === "spotify" && account?.providerAccountId && user?.id) {
         try {
           await mergeUsersOnLinkedAccount({
-            targetUserId: user.id, // in a linking flow, this is the currently signed-in user
+            targetUserId: user.id,
             provider: account.provider,
             providerAccountId: String(account.providerAccountId),
           });
         } catch (e) {
           console.error("Merge on link failed:", e);
-          // still proceed; worst case, linking fails due to unique constraint and NextAuth shows an error
         }
       }
 
@@ -235,8 +229,14 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
 
-    async redirect() {
-      return appBaseUrl + "/";
+    // 🔁 Preserve /verify redirects; otherwise allow same-origin URLs
+    async redirect({ url, baseUrl }) {
+      const u = new URL(url, baseUrl);
+      if (u.origin === baseUrl && u.pathname.startsWith("/verify")) {
+        return u.toString();
+      }
+      if (u.origin === baseUrl) return u.toString();
+      return baseUrl;
     },
 
     async jwt({ token, account, user }) {
@@ -276,6 +276,7 @@ export const authOptions: NextAuthOptions = {
               image: true,
               birthdate: true,
               countryCode: true, country: true, city: true,
+              emailVerified: true,
               credential: { select: { id: true } },
             },
           }),
@@ -298,6 +299,9 @@ export const authOptions: NextAuthOptions = {
 
         (token as any).hasCredentials = !!dbUser?.credential?.id;
         (token as any).oauthProviders = accounts.map(a => a.provider);
+
+        // expose verification status for middleware/UI
+        (token as any).emailVerified = !!dbUser?.emailVerified;
       }
 
       return token;
@@ -312,17 +316,21 @@ export const authOptions: NextAuthOptions = {
 
         if (typeof token.name === "string") session.user.name = token.name;
 
-        (session.user as any).birthdate = (token as any).birthdate ?? null;
+        (session.user as any).birthdate      = (token as any).birthdate ?? null;
         (session.user as any).hasCredentials = Boolean((token as any).hasCredentials);
         (session.user as any).oauthProviders = ((token as any).oauthProviders ?? []) as string[];
-        (session.user as any).countryCode = (token as any).countryCode ?? null;
-        (session.user as any).country     = (token as any).country ?? null;
-        (session.user as any).city        = (token as any).city ?? null;
+        (session.user as any).countryCode    = (token as any).countryCode ?? null;
+        (session.user as any).country        = (token as any).country ?? null;
+        (session.user as any).city           = (token as any).city ?? null;
       }
 
       if ((token as any).accessToken) {
         (session as any).accessToken = (token as any).accessToken as string;
       }
+
+      // handy flag on session
+      (session as any).emailVerified = Boolean((token as any).emailVerified);
+
       return session;
     },
   },

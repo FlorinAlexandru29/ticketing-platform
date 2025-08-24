@@ -35,7 +35,7 @@ export default function CreateAccountCard({ showPwd, setShowPwd, setMode }: Auth
         return;
       }
 
-      // proactively send the first code (so they don't need to press "Resend")
+      // proactively send the first code
       try {
         await fetch('/api/auth/verify/send', {
           method: 'POST',
@@ -44,20 +44,26 @@ export default function CreateAccountCard({ showPwd, setShowPwd, setMode }: Auth
         });
       } catch {}
 
-      // sign-in
+      const lower = email.trim().toLowerCase();
+
+      // sign-in (non-redirecting)
       const login = await signIn('credentials', {
         redirect: false,
-        identifier: email.trim().toLowerCase(),
+        identifier: lower,
         password,
       });
 
-      // If NextAuth wants verify → stash creds under ONE key and go to /verify
-      if (login?.url && login.url.includes('/verify')) {
-        sessionStorage.setItem('postVerifyLogin', JSON.stringify({
-          email: email.trim().toLowerCase(),
-          password,
-        }));
-        window.location.href = login.url;
+      // If NextAuth blocks with VerifyEmail OR signals /verify, stash and go verify
+      const needsVerify =
+        login?.error === 'VerifyEmail' ||
+        (login?.url && new URL(login.url, window.location.origin).pathname.startsWith('/verify'));
+
+      if (needsVerify) {
+        sessionStorage.setItem(
+          'postVerifyLogin',
+          JSON.stringify({ email: lower, password })
+        );
+        window.location.href = `/verify?email=${encodeURIComponent(lower)}`;
         return;
       }
 
@@ -165,7 +171,7 @@ export default function CreateAccountCard({ showPwd, setShowPwd, setMode }: Auth
           )}
         </div>
 
-        <div className="flex flex-col shrink-0 h-[var(--oauth-row-h)*1.5] gap-0 sm:gap-3 justify-center items-center w/full min-w-0 mb-0 sm:mb-2">
+        <div className="flex flex-col shrink-0 h-[var(--oauth-row-h)*1.5] gap-0 sm:gap-3 justify-center items-center w-full min-w-0 mb-0 sm:mb-2">
           <button
             className="link link-primary text-center mt-0 sm:mt-2 text-[calc(var(--font-sz)*0.9)] md:text-[calc(var(--font-sz)*1.1)]"
             onClick={(e) => { e.preventDefault(); setMode('signin'); }}

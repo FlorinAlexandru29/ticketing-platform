@@ -16,7 +16,6 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { faSpotify } from '@fortawesome/free-brands-svg-icons';
 
-
 type Props = {
   session: any; // session.user: { id, name, email, image, birthdate?, hasCredentials?, countryCode?, country?, city?, oauthProviders?: string[] }
   spotify: {
@@ -28,8 +27,6 @@ type Props = {
   } | null;
 };
 
-
-
 function pickAvatar(session: any, spotify: Props['spotify']) {
   return session?.user?.image || spotify?.images?.[0]?.url || 'placeholder';
 }
@@ -38,19 +35,16 @@ type CountryOption = { code: string; name: string };
 const RAPIDAPI_KEY = process.env.NEXT_PUBLIC_RAPIDAPI_KEY as string | undefined;
 
 export default function ProfileCard({ session, spotify }: Props) {
-  
   const router = useRouter();
 
   const avatar = pickAvatar(session, spotify);
   const displayName = session?.user?.name || spotify?.display_name || 'Unnamed User';
   const birthdateFromSession: string | null = session?.user?.birthdate ?? null;
   const email = session?.user?.email ?? null;
-  const userId = session?.user?.id ?? null;
 
   const canEdit = session?.user?.hasCredentials === true;
   const canEditBirth = canEdit || !birthdateFromSession;
 
-  const [copied, setCopied] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [imgLoading, setImgLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -86,6 +80,7 @@ export default function ProfileCard({ session, spotify }: Props) {
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   const cityAbortRef = useRef<AbortController | null>(null);
   const cityDebounceRef = useRef<any>(null);
+  const cityContainerRef = useRef<HTMLDivElement>(null);
 
   // 🔒 Change password modal state (credentials-only)
   const [pwdOpen, setPwdOpen] = useState(false);
@@ -135,7 +130,6 @@ export default function ProfileCard({ session, spotify }: Props) {
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json?.ok) throw new Error(json?.error || `HTTP ${res.status}`);
 
-      // success -> close, clear fields
       setPwdOpen(false);
       setPwdOld('');
       setPwdNew('');
@@ -153,13 +147,11 @@ export default function ProfileCard({ session, spotify }: Props) {
     session.user.oauthProviders.includes('spotify');
 
   const [spLoading, setSpLoading] = useState(false);
-  const [spErr, setSpErr] = useState<string | null>(null);
   const [spProfileUrl, setSpProfileUrl] = useState<string | null>(
     spotify?.external_urls?.spotify ?? null
   );
 
   const effectiveAvatar = avatarUrl ?? (avatar !== 'placeholder' ? avatar : null);
-  
 
   // Countries list
   useEffect(() => {
@@ -184,7 +176,6 @@ export default function ProfileCard({ session, spotify }: Props) {
     (async () => {
       try {
         setSpLoading(true);
-        setSpErr(null);
         const r = await fetch('/api/spotify/me', { cache: 'no-store' });
         if (!r.ok) {
           const t = await r.text();
@@ -192,22 +183,14 @@ export default function ProfileCard({ session, spotify }: Props) {
         }
         const j = await r.json();
         setSpProfileUrl(j?.external_url ?? null);
-      } catch (e: any) {
-        setSpErr(e?.message ?? 'Failed to load Spotify profile');
+      } catch (e) {
+        // noop (we don't surface this error in UI)
+        console.error(e);
       } finally {
         setSpLoading(false);
       }
     })();
   }, [hasSpotify, spProfileUrl]);
-
-  async function copyId() {
-    if (!userId) return;
-    try {
-      await navigator.clipboard.writeText(String(userId));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    } catch {}
-  }
 
   // Avatar upload
   async function requestSignedUrl(ext: string) {
@@ -239,7 +222,9 @@ export default function ProfileCard({ session, spotify }: Props) {
     try {
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
       const { path, token } = await requestSignedUrl(ext);
-      const { error: upErr } = await supabaseClient.storage.from('avatars').uploadToSignedUrl(path, token, file);
+      const { error: upErr } = await supabaseClient.storage
+        .from('avatars')
+        .uploadToSignedUrl(path, token, file);
       if (upErr) throw upErr;
 
       const { url } = await commitAvatar(path);
@@ -406,14 +391,17 @@ export default function ProfileCard({ session, spotify }: Props) {
           minPopulation: '1000',
           limit: '10',
         });
-        const resp = await fetch(`https://wft-geo-db.p.rapidapi.com/v1/geo/cities?${params.toString()}`, {
-          cache: 'no-store',
-          signal: controller.signal,
-          headers: {
-            'X-RapidAPI-Key': RAPIDAPI_KEY || '',
-            'X-RapidAPI-Host': 'wft-geo-db.p.rapidapi.com',
-          },
-        });
+        const resp = await fetch(
+          `https://wft-geo-db.p.rapidapi.com/v1/geo/cities?${params.toString()}`,
+          {
+            cache: 'no-store',
+            signal: controller.signal,
+            headers: {
+              'X-RapidAPI-Key': RAPIDAPI_KEY || '',
+              'X-RapidAPI-Host': 'wft-geo-db.p.rapidapi.com',
+            },
+          }
+        );
         if (!resp.ok) {
           const text = await resp.text();
           throw new Error(`HTTP ${resp.status}: ${text.slice(0, 160)}`);
@@ -440,7 +428,6 @@ export default function ProfileCard({ session, spotify }: Props) {
   }, [editingCity, countryCode, cityQuery]);
 
   // Close dropdown on outside click
-  const cityContainerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (!showCityDropdown) return;
@@ -452,35 +439,10 @@ export default function ProfileCard({ session, spotify }: Props) {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [showCityDropdown]);
 
-  // Unlink Spotify
+  // Unlink constraints
   const unlinkAllowed =
     (session?.user?.hasCredentials === true) ||
     ((session?.user?.oauthProviders?.length ?? 0) > 1);
-
-  async function onUnlinkSpotify() {
-    if (!hasSpotify) return;
-    if (!unlinkAllowed) {
-      alert("You can't unlink: Spotify is your only login method.");
-      return;
-    }
-    const ok = confirm("Unlink Spotify from your account?");
-    if (!ok) return;
-
-    try {
-      const r = await fetch('/api/link/spotify/unlink', { method: 'POST' });
-      if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        throw new Error(j?.error || `HTTP ${r.status}`);
-      }
-      // Clear local profile URL and refresh session-backed UI
-      setSpProfileUrl(null);
-      router.refresh();
-    } catch (e: any) {
-      alert(e?.message ?? 'Failed to unlink Spotify');
-    }
-  }
-
-
 
   return (
     <section className="h-full card shadow-sm text-[calc(var(--font-sz)*0.9)] overflow-y-auto overflow-x-hidden">
@@ -491,9 +453,9 @@ export default function ProfileCard({ session, spotify }: Props) {
 
         {/* Header row */}
         <div className="flex flex-col items-center gap-2 md:gap-6">
-          <div className='flex flex-row w-full items-center justify-center'>
+          <div className="flex w-full items-center justify-center">
             <div className="avatar">
-              <div className="relative group w-20 h-20 sm:w-30 sm:h-30 rounded-full border-primary-content border-[1px] overflow-hidden">
+              <div className="relative group w-20 h-20 sm:w-30 sm:h-30 rounded-full border-primary-content border overflow-hidden">
                 {effectiveAvatar ? (
                   <Image
                     src={effectiveAvatar}
@@ -504,37 +466,49 @@ export default function ProfileCard({ session, spotify }: Props) {
                     onLoadingComplete={() => setImgLoading(false)}
                   />
                 ) : (
-                  <FontAwesomeIcon icon={faUser} style={{ width: '100%', height: '100%' }} className="bg-primary-content" />
+                  <FontAwesomeIcon
+                    icon={faUser}
+                    style={{ width: '100%', height: '100%' }}
+                  />
                 )}
 
                 <button
                   type="button"
                   onClick={openPicker}
                   disabled={uploading}
-                  className={[
-                    'absolute inset-0 grid place-items-center transition text-white',
-                    'bg-black/35',
-                    (uploading || imgLoading) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
-                  ].join(' ')}
+                  className={`absolute inset-0 grid place-items-center transition text-white bg-black/35 ${
+                    uploading || imgLoading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  }`}
                   title="Edit profile picture"
                   aria-label="Edit profile picture"
                 >
                   <span className="btn btn-ghost btn-circle btn-sm">
-                    {(uploading || imgLoading) ? <span className="loading loading-spinner" /> : <FontAwesomeIcon icon={faCamera} />}
+                    {uploading || imgLoading ? (
+                      <span className="loading loading-spinner" />
+                    ) : (
+                      <FontAwesomeIcon icon={faCamera} />
+                    )}
                   </span>
                 </button>
 
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onPickFile} />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={onPickFile}
+                />
               </div>
             </div>
+
             <div className="flex flex-col justify-center w-full md:w-1/2">
               {/* Name */}
               <div className="justify-center items-center pl-3 sm:pl-4 flex flex-col">
                 <span className="opacity-80 min-w-[4.5rem] self-start pl-1">Name</span>
-                <label className="flex justify-between items-center w-full border-none shadow-none p-2 validator h-[var(--ctrl-h)] text-[var(--font-sz)]">
+                <label className="flex justify-between items-center w-full p-2 h-[var(--ctrl-h)] text-[var(--font-sz)]">
                   <input
                     type="text"
-                    className="border-none shadow-none w-full focus-within:shadow-none focus-within:outline-none"
+                    className="w-full focus:outline-none"
                     placeholder="Your name"
                     value={nameValue}
                     onChange={(e) => setNameValue(e.target.value)}
@@ -542,7 +516,12 @@ export default function ProfileCard({ session, spotify }: Props) {
                     autoComplete="name"
                     aria-invalid={!!nameError}
                   />
-                  <div className="tooltip join-item" data-tip={canEdit ? (editingName ? 'Save' : 'Edit') : 'Editable only for email/password accounts'}>
+                  <div
+                    className="tooltip join-item"
+                    data-tip={
+                      canEdit ? (editingName ? 'Save' : 'Edit') : 'Editable only for email/password accounts'
+                    }
+                  >
                     <button
                       type="button"
                       onClick={() => (editingName ? onSaveName() : setEditingName(true))}
@@ -566,157 +545,175 @@ export default function ProfileCard({ session, spotify }: Props) {
             </div>
           </div>
 
-          
-              {/* Birth */}
-    <div className="w-3/4 justify-center items-start flex flex-col">
-      <div className="w-1/2">
-        <span className="opacity-80 min-w-[4.5rem] self-start pl-1">Birth Date</span>
-        <label className="flex justify-between items-center w-full border-none shadow-none p-2 validator h-[var(--ctrl-h)] text-[var(--font-sz)]">
-          <input
-            type="date"
-            className="border-none shadow-none w-full focus-within:shadow-none focus-within:outline-none"
-            placeholder="YYYY-MM-DD"
-            value={birthValue}
-            onChange={(e) => setBirthValue(e.target.value)}
-            disabled={!canEditBirth || !editingBirth}
-            max={new Date().toISOString().slice(0, 10)}
-            autoComplete="bday"
-            aria-invalid={!!birthError}
-          />
-          <div className="tooltip join-item" data-tip={canEditBirth ? (editingBirth ? 'Save' : 'Edit') : 'Read-only'}>
-            <button
-              type="button"
-              onClick={() => (editingBirth ? onSaveBirth() : setEditingBirth(true))}
-              disabled={!canEditBirth || savingBirth}
-              className="btn btn-success btn-circle btn-sm"
-              aria-label={editingBirth ? 'Save birth date' : 'Edit birth date'}
-            >
-              {editingBirth ? <FontAwesomeIcon icon={faCheck} /> : <FontAwesomeIcon icon={faPencil} />}
-            </button>
-          </div>
-        </label>
-      </div>
-    </div>
-    {birthError && <div className="px-4 -mt-2 text-error text-sm w-3/4">{birthError}</div>}
-
-    {/* Country + City */}
-    <div className="flex flex-col sm:flex-row w-3/4 items-center">
-      {/* Country */}
-      <div className="w-full justify-center items-center flex flex-col">
-        <span className="opacity-80 min-w-[4.5rem] self-start pl-1">Country</span>
-        <label className="flex bg-base-100 justify-between items-center w-full border-none shadow-none p-2 pl-0 validator h-[var(--ctrl-h)] text-[var(--font-sz)]">
-          <select
-            className="disabled:bg-base-100 focus-visible:outline-none focus-visible:shadow-none select pl-2! w-full border-none shadow-none focus:outline-none"
-            value={countryCode}
-            onChange={(e) => {
-              const code = e.target.value;
-              setCountryCode(code);
-              const hit = countries.find(c => c.code === code);
-              setCountryName(hit?.name || '');
-            }}
-            disabled={!editingCountry}
-            aria-invalid={!!countryError}
-          >
-            <option value="">— Select country —</option>
-            {countries.map(c => (
-              <option key={c.code} value={c.code}>{c.name}</option>
-            ))}
-          </select>
-          <div className="tooltip join-item" data-tip={editingCountry ? 'Save' : 'Edit'}>
-            <button
-              type="button"
-              onClick={() => (editingCountry ? onSaveCountry() : setEditingCountry(true))}
-              disabled={savingCountry}
-              className="btn btn-success btn-circle btn-sm"
-              aria-label={editingCountry ? 'Save country' : 'Edit country'}
-            >
-              {editingCountry ? <FontAwesomeIcon icon={faCheck} /> : <FontAwesomeIcon icon={faPencil} />}
-            </button>
-          </div>
-        </label>
-      </div>
-      {countryError && <div className="px-4 -mt-2 text-error text-sm w-3/4">{countryError}</div>}
-
-      {/* City */}
-      <div className="w-full justify-center items-center flex flex-col">
-        <span className="opacity-80 min-w-[4.5rem] self-start pl-1">City</span>
-        <div ref={cityContainerRef} className={`dropdown dropdown-top w-full ${editingCity && showCityDropdown ? 'dropdown-open' : ''}`}>
-          <label className="flex justify-between items-center w-full border-none shadow-none p-2 pl-0 h-[var(--ctrl-h)] text-[var(--font-sz)]">
-            <input
-              type="text"
-              tabIndex={0}
-              className="pl-2 pr-4 border-none shadow-none w-full focus-within:shadow-none focus-within:outline-none"
-              placeholder={countryCode ? 'Start typing a city (min 2 chars)' : 'Select a country first'}
-              value={editingCity ? cityQuery : cityValue}
-              onChange={(e) => setCityQuery(e.target.value)}
-              onFocus={() => {
-                if (editingCity && citySuggestions.length > 0) setShowCityDropdown(true);
-              }}
-              disabled={!editingCity || !countryCode}
-              autoComplete="address-level2"
-              aria-invalid={!!cityError}
-            />
-            <div className="tooltip join-item" data-tip={editingCity ? 'Save' : 'Edit'}>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!editingCity) {
-                    setEditingCity(true);
-                    setCityQuery(cityValue || '');
-                  } else {
-                    await onSaveCity();
-                  }
-                }}
-                disabled={!countryCode || citySearchLoading}
-                className="btn btn-success btn-circle btn-sm"
-                aria-label={editingCity ? 'Save city' : 'Edit city'}
-              >
-                {editingCity ? <FontAwesomeIcon icon={faCheck} /> : <FontAwesomeIcon icon={faPencil} />}
-              </button>
-            </div>
-          </label>
-
-          {editingCity && showCityDropdown && (
-            <ul className="dropdown-content menu menu-sm p-2 shadow bg-base-100 rounded-box w-full max-h-64 overflow-auto z-20 mb-1">
-              {citySearchLoading && (
-                <li className="disabled">
-                  <a><span className="loading loading-spinner mr-2" />Searching…</a>
-                </li>
-              )}
-              {!citySearchLoading && citySuggestions.length === 0 && (
-                <li className="disabled"><a>No results</a></li>
-              )}
-              {!citySearchLoading && citySuggestions.map((name) => (
-                <li key={name}>
-                  <a
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      setCityQuery(name);
-                      setCityValue(name);
-                      setShowCityDropdown(false);
-                    }}
+          {/* Birth */}
+          <div className="w-3/4 justify-center items-start flex flex-col">
+            <div className="w-1/2">
+              <span className="opacity-80 min-w-[4.5rem] self-start pl-1">Birth Date</span>
+              <label className="flex justify-between items-center w-full p-2 h-[var(--ctrl-h)] text-[var(--font-sz)]">
+                <input
+                  type="date"
+                  className="focus:outline-none"
+                  placeholder="YYYY-MM-DD"
+                  value={birthValue}
+                  onChange={(e) => setBirthValue(e.target.value)}
+                  disabled={!canEditBirth || !editingBirth}
+                  max={new Date().toISOString().slice(0, 10)}
+                  autoComplete="bday"
+                  aria-invalid={!!birthError}
+                />
+                <div
+                  className="tooltip join-item"
+                  data-tip={canEditBirth ? (editingBirth ? 'Save' : 'Edit') : 'Read-only'}
+                >
+                  <button
+                    type="button"
+                    onClick={() => (editingBirth ? onSaveBirth() : setEditingBirth(true))}
+                    disabled={!canEditBirth || savingBirth}
+                    className="btn btn-success btn-circle btn-sm"
+                    aria-label={editingBirth ? 'Save birth date' : 'Edit birth date'}
                   >
-                    {name}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
+                    {editingBirth ? <FontAwesomeIcon icon={faCheck} /> : <FontAwesomeIcon icon={faPencil} />}
+                  </button>
+                </div>
+              </label>
+            </div>
+          </div>
+          {birthError && <div className="px-4 -mt-2 text-error text-sm w-3/4">{birthError}</div>}
 
-      {cityError && <div className="px-4 -mt-2 text-error text-sm w-3/4">{cityError}</div>}
-    </div>
-            
+          {/* Country + City */}
+          <div className="flex flex-col sm:flex-row w-3/4 items-center">
+            {/* Country */}
+            <div className="w-full justify-center items-center flex flex-col">
+              <span className="opacity-80 min-w-[4.5rem] self-start pl-1">Country</span>
+              <label className="flex bg-base-100 justify-between items-center w-full p-2 pl-0 h-[var(--ctrl-h)] text-[var(--font-sz)]">
+                <select
+                  className="disabled:bg-base-100 select pl-2! w-full focus:outline-none"
+                  value={countryCode}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    setCountryCode(code);
+                    const hit = countries.find((c) => c.code === code);
+                    setCountryName(hit?.name || '');
+                  }}
+                  disabled={!editingCountry}
+                  aria-invalid={!!countryError}
+                >
+                  <option value="">— Select country —</option>
+                  {countries.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="tooltip join-item" data-tip={editingCountry ? 'Save' : 'Edit'}>
+                  <button
+                    type="button"
+                    onClick={() => (editingCountry ? onSaveCountry() : setEditingCountry(true))}
+                    disabled={savingCountry}
+                    className="btn btn-success btn-circle btn-sm"
+                    aria-label={editingCountry ? 'Save country' : 'Edit country'}
+                  >
+                    {editingCountry ? <FontAwesomeIcon icon={faCheck} /> : <FontAwesomeIcon icon={faPencil} />}
+                  </button>
+                </div>
+              </label>
+            </div>
+            {countryError && <div className="px-4 -mt-2 text-error text-sm w-3/4">{countryError}</div>}
+
+            {/* City */}
+            <div className="w-full justify-center items-center flex flex-col">
+              <span className="opacity-80 min-w-[4.5rem] self-start pl-1">City</span>
+              <div
+                ref={cityContainerRef}
+                className={`dropdown dropdown-top w-full ${editingCity && showCityDropdown ? 'dropdown-open' : ''}`}
+              >
+                <label className="flex justify-between items-center w-full p-2 pl-0 h-[var(--ctrl-h)] text-[var(--font-sz)]">
+                  <input
+                    type="text"
+                    tabIndex={0}
+                    className="pl-2 pr-4 w-full focus:outline-none"
+                    placeholder={countryCode ? 'Start typing a city (min 2 chars)' : 'Select a country first'}
+                    value={editingCity ? cityQuery : cityValue}
+                    onChange={(e) => setCityQuery(e.target.value)}
+                    onFocus={() => {
+                      if (editingCity && citySuggestions.length > 0) setShowCityDropdown(true);
+                    }}
+                    disabled={!editingCity || !countryCode}
+                    autoComplete="address-level2"
+                    aria-invalid={!!cityError}
+                  />
+                  <div className="tooltip join-item" data-tip={editingCity ? 'Save' : 'Edit'}>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!editingCity) {
+                          setEditingCity(true);
+                          setCityQuery(cityValue || '');
+                        } else {
+                          await onSaveCity();
+                        }
+                      }}
+                      disabled={!countryCode || citySearchLoading}
+                      className="btn btn-success btn-circle btn-sm"
+                      aria-label={editingCity ? 'Save city' : 'Edit city'}
+                    >
+                      {editingCity ? <FontAwesomeIcon icon={faCheck} /> : <FontAwesomeIcon icon={faPencil} />}
+                    </button>
+                  </div>
+                </label>
+
+                {editingCity && showCityDropdown && (
+                  <ul className="dropdown-content menu menu-sm p-2 shadow bg-base-100 rounded-box w-full max-h-64 overflow-auto z-20 mb-1">
+                    {citySearchLoading && (
+                      <li className="disabled">
+                        <a>
+                          <span className="loading loading-spinner mr-2" />
+                          Searching…
+                        </a>
+                      </li>
+                    )}
+                    {!citySearchLoading && citySuggestions.length === 0 && (
+                      <li className="disabled">
+                        <a>No results</a>
+                      </li>
+                    )}
+                    {!citySearchLoading &&
+                      citySuggestions.map((name) => (
+                        <li key={name}>
+                          <a
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setCityQuery(name);
+                              setCityValue(name);
+                              setShowCityDropdown(false);
+                            }}
+                          >
+                            {name}
+                          </a>
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            {cityError && <div className="px-4 -mt-2 text-error text-sm w-3/4">{cityError}</div>}
+          </div>
 
           {/* Spotify section */}
           <div className="w-3/4 flex flex-col">
-            <div className={`flex items-center ${!hasSpotify ? 'justify-center' : 'gap-6 justify-between sm:justify-center'}`}>
+            <div
+              className={`flex items-center ${
+                !hasSpotify ? 'justify-center' : 'gap-6 justify-between sm:justify-center'
+              }`}
+            >
               {!hasSpotify ? (
                 <button
                   type="button"
                   className="btn btn-success btn-wide"
-                  onClick={() => { window.location.href = "/api/link/spotify/start"; }}
+                  onClick={() => {
+                    window.location.href = '/api/link/spotify/start';
+                  }}
                 >
                   <FontAwesomeIcon className="mr-2" icon={faLink} />
                   Link Spotify
@@ -730,244 +727,244 @@ export default function ProfileCard({ session, spotify }: Props) {
                     rel="noreferrer"
                     className="btn btn-outline btn-success"
                     aria-disabled={!spProfileUrl}
-                    onClick={(e) => { if (!spProfileUrl) e.preventDefault(); }}
+                    onClick={(e) => {
+                      if (!spProfileUrl) e.preventDefault();
+                    }}
                   >
                     {spLoading ? (
                       <span className="loading loading-spinner" />
                     ) : (
                       <>
-                        
                         Open Spotify Profile
                         <FontAwesomeIcon icon={faSpotify} />
                       </>
                     )}
                   </a>
+
                   {/* Unlink button (opens modal) */}
                   {unlinkAllowed && (
-                    <>
                     <div className="tooltip join-item" data-tip="Unlink Spotify">
-                    <button
-                      type="button"
-                      className="btn btn-error btn-outline btn-circle"
-                      onClick={() => setUnlinkOpen(true)}
-                    >
-                      <FontAwesomeIcon icon={faLinkSlash} />
-                    </button>
-                  </div>
-                    </>)}
-                    
-                  
+                      <button
+                        type="button"
+                        className="btn btn-error btn-outline btn-circle"
+                        onClick={() => setUnlinkOpen(true)}
+                      >
+                        <FontAwesomeIcon icon={faLinkSlash} />
+                      </button>
+                    </div>
+                  )}
+
                   {/* 🔗 Unlink Spotify modal */}
-<div className={`modal ${unlinkOpen ? 'modal-open' : ''}`}>
-  <div className="modal-box">
-    <h3 className="font-bold text-lg">Unlink Spotify</h3>
-    <p className="mt-2">
-      This will disconnect Spotify from your account. You’ll still be able to sign in with your other methods.
-    </p>
+                  <div className={`modal ${unlinkOpen ? 'modal-open' : ''}`}>
+                    <div className="modal-box text-[var(--font-sz)]">
+                      <h3 className="font-bold text-lg">Unlink Spotify</h3>
+                      <p className="mt-2">
+                        This will disconnect Spotify from your account. You’ll still be able to sign in with your
+                        other methods.
+                      </p>
 
-    {unlinkError && <p className="text-error text-sm mt-3">{unlinkError}</p>}
+                      {unlinkError && <p className="text-error text-sm mt-3">{unlinkError}</p>}
 
-    <div className="modal-action">
-      <button
-        type="button"
-        className="btn btn-outline"
-        onClick={() => !unlinkLoading && setUnlinkOpen(false)}
-      >
-        Cancel
-      </button>
-      <button
-        type="button"
-        className={`btn btn-error ${(!unlinkAllowed || unlinkLoading) ? 'btn-disabled' : ''}`}
-        disabled={!unlinkAllowed || unlinkLoading}
-        onClick={async () => {
-          setUnlinkError(null);
-          setUnlinkLoading(true);
-          try {
-            const r = await fetch('/api/link/spotify/unlink', { method: 'POST' });
-            const j = await r.json().catch(() => ({}));
-            if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
-            setSpProfileUrl(null);
-            setUnlinkOpen(false);
-            router.refresh();
-          } catch (e: any) {
-            setUnlinkError(e?.message ?? 'Failed to unlink Spotify');
-          } finally {
-            setUnlinkLoading(false);
-          }
-        }}
-      >
-        {unlinkLoading ? <span className="loading loading-spinner" /> : 'Unlink'}
-      </button>
-    </div>
-  </div>
+                      <div className="modal-action">
+                        <button
+                          type="button"
+                          className="btn btn-outline"
+                          onClick={() => !unlinkLoading && setUnlinkOpen(false)}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn btn-error ${(!unlinkAllowed || unlinkLoading) ? 'btn-disabled' : ''}`}
+                          disabled={!unlinkAllowed || unlinkLoading}
+                          onClick={async () => {
+                            setUnlinkError(null);
+                            setUnlinkLoading(true);
+                            try {
+                              const r = await fetch('/api/link/spotify/unlink', { method: 'POST' });
+                              const j = await r.json().catch(() => ({}));
+                              if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+                              setSpProfileUrl(null);
+                              setUnlinkOpen(false);
+                              router.refresh();
+                            } catch (e: any) {
+                              setUnlinkError(e?.message ?? 'Failed to unlink Spotify');
+                            } finally {
+                              setUnlinkLoading(false);
+                            }
+                          }}
+                        >
+                          {unlinkLoading ? <span className="loading loading-spinner" /> : 'Unlink'}
+                        </button>
+                      </div>
+                    </div>
 
-  <div
-    className="modal-backdrop fixed inset-0 bg-black/50 backdrop-blur-sm"
-    onClick={() => !unlinkLoading && setUnlinkOpen(false)}
-  />
-</div>
+                    <div
+                      className="modal-backdrop fixed inset-0 bg-black/50 backdrop-blur-sm"
+                      onClick={() => !unlinkLoading && setUnlinkOpen(false)}
+                    />
+                  </div>
                 </>
               )}
             </div>
           </div>
-<div className='flex w-3/4 mt-4 flex-row sm:flex-col items-center justify-center gap-4'>
-          {/* ▶️ Show the button only for credentials users */}
-        {canChangePassword && (
-          <div className="w-full flex justify-center">
-            <button
-              type="button"
-              className="btn btn-error btn-wide"
-              onClick={() => setPwdOpen(true)}
-            >
-              Change Your Password
-            </button>
-          </div>
-        )}
 
-        {/* 🔐 Password modal */}
-        
-        <div className={`modal ${pwdOpen ? 'modal-open' : ''}`}>
-          <div className="modal-box">
-            <h3 className="font-bold text-lg">Change your password</h3>
+          <div className="flex w-3/4 mt-4 flex-row sm:flex-col items-center justify-center gap-4">
+            {/* ▶️ Change password (credentials only) */}
+            {canChangePassword && (
+              <div className="w-full flex justify-center">
+                <button type="button" className="btn btn-error btn-wide" onClick={() => setPwdOpen(true)}>
+                  Change Your Password
+                </button>
+              </div>
+            )}
 
-            <div className="form-control flex flex-col gap-2 mt-4">
-              <span className="opacity-70 whitespace-nowrap">Old Password</span>
-              <label className="input input-bordered flex items-center">
-                
-                <input
-                  type="password"
-                  className="grow"
-                  value={pwdOld}
-                  onChange={(e) => setPwdOld(e.target.value)}
-                  autoComplete="current-password"
-                />
-              </label>
-              <span className="opacity-70 whitespace-nowrap">New Password</span>
-              <label className="input input-bordered flex items-center">
-                
-                <input
-                  type="password"
-                  className="grow"
-                  value={pwdNew}
-                  onChange={(e) => setPwdNew(e.target.value)}
-                  autoComplete="new-password"
-                />
-              </label>
+            {/* 🔐 Password modal */}
+            <div className={`modal ${pwdOpen ? 'modal-open' : ''}`}>
+              <div className="modal-box text-[var(--font-sz)]">
+                <h3 className="font-bold text-lg">Change your password</h3>
 
-              {pwdError && <p className="text-error text-sm">{pwdError}</p>}
+                <div className="form-control flex flex-col gap-2 mt-4">
+                  <span className="opacity-70 whitespace-nowrap">Old Password</span>
+                  <label className="input input-bordered flex items-center">
+                    <input
+                      type="password"
+                      className="grow"
+                      value={pwdOld}
+                      onChange={(e) => setPwdOld(e.target.value)}
+                      autoComplete="current-password"
+                    />
+                  </label>
+
+                  <span className="opacity-70 whitespace-nowrap">New Password</span>
+                  <label className="input input-bordered flex items-center">
+                    <input
+                      type="password"
+                      className="grow"
+                      value={pwdNew}
+                      onChange={(e) => setPwdNew(e.target.value)}
+                      autoComplete="new-password"
+                    />
+                  </label>
+
+                  {pwdError && <p className="text-error text-sm">{pwdError}</p>}
+                </div>
+
+                <div className="modal-action">
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-error"
+                    onClick={() => {
+                      if (!pwdLoading) {
+                        setPwdOpen(false);
+                        setPwdError(null);
+                        setPwdOld('');
+                        setPwdNew('');
+                      }
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-success ${pwdLoading ? 'btn-disabled' : ''}`}
+                    onClick={onConfirmChangePassword}
+                    disabled={pwdLoading}
+                  >
+                    {pwdLoading ? <span className="loading loading-spinner" /> : 'Confirm'}
+                  </button>
+                </div>
+              </div>
+
+              {/* backdrop click closes modal */}
+              <div
+                className="modal-backdrop fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-200 opacity-100 pointer-events-auto"
+                onClick={() => !pwdLoading && setPwdOpen(false)}
+              />
             </div>
 
-            <div className="modal-action">
+            {/* Delete account (visible for any user) */}
+            <div className="w-full flex justify-center">
               <button
                 type="button"
-                className="btn btn-outline btn-error"
-                onClick={() => {
-                  if (!pwdLoading) {
-                    setPwdOpen(false);
-                    setPwdError(null);
-                    setPwdOld('');
-                    setPwdNew('');
-                  }
-                }}
+                className="btn btn-outline btn-error btn-wide"
+                onClick={() => setDelOpen(true)}
               >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className={`btn btn-success ${pwdLoading ? 'btn-disabled' : ''}`}
-                onClick={onConfirmChangePassword}
-                disabled={pwdLoading}
-              >
-                {pwdLoading ? <span className="loading loading-spinner" /> : 'Confirm'}
+                Delete Account
               </button>
             </div>
+
+            {/* 🗑️ Delete account modal */}
+            <div className={`modal ${delOpen ? 'modal-open' : ''}`}>
+              <div className="modal-box text-[var(--font-sz)]">
+                <h3 className="font-bold text-lg text-error">Delete your account</h3>
+                <div className="mt-3 space-y-2">
+                  <p>
+                    This will permanently delete your account, sessions, credentials, and any linked OAuth accounts
+                    (Spotify included).
+                  </p>
+                  <p>
+                    Tickets you’ve purchased will remain valid and visible to organizers, but they will no longer be
+                    associated with your account.
+                  </p>
+                  <p>If you are hosting events, you must transfer or delete them first.</p>
+                  <p className="mt-2">
+                    Type <code className="font-mono">DELETE</code> to confirm.
+                  </p>
+
+                  <label className="input input-bordered flex items-center mt-1">
+                    <input
+                      type="text"
+                      className="grow"
+                      value={delConfirm}
+                      onChange={(e) => setDelConfirm(e.target.value)}
+                      placeholder="DELETE"
+                    />
+                  </label>
+
+                  {delError && <p className="text-error text-sm">{delError}</p>}
+                </div>
+
+                <div className="modal-action">
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={() => !delLoading && setDelOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-error ${delLoading || delConfirm !== 'DELETE' ? 'btn-disabled' : ''}`}
+                    disabled={delLoading || delConfirm !== 'DELETE'}
+                    onClick={async () => {
+                      setDelError(null);
+                      setDelLoading(true);
+                      try {
+                        const res = await fetch('/api/account/delete', { method: 'DELETE' });
+                        const j = await res.json().catch(() => ({}));
+                        if (!res.ok || !j?.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+
+                        await signOut({ redirect: true, callbackUrl: '/' });
+                      } catch (e: any) {
+                        setDelError(e?.message ?? 'Failed to delete account');
+                      } finally {
+                        setDelLoading(false);
+                      }
+                    }}
+                  >
+                    {delLoading ? <span className="loading loading-spinner" /> : 'Delete account'}
+                  </button>
+                </div>
+              </div>
+
+              <div
+                className="modal-backdrop fixed inset-0 bg-black/50 backdrop-blur-sm"
+                onClick={() => !delLoading && setDelOpen(false)}
+              />
+            </div>
           </div>
-
-          {/* backdrop click closes modal */}
-          <div className="modal-backdrop fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-200
-                    opacity-100 pointer-events-auto" onClick={() => !pwdLoading && setPwdOpen(false)} />
         </div>
-
-        {/* Delete account (visible for any user) */}
-        <div className="w-full flex justify-center">
-          <button
-            type="button"
-            className="btn btn-outline btn-error btn-wide "
-            onClick={() => setDelOpen(true)}
-          >
-            Delete Account
-          </button>
-        </div>
-        {/* 🗑️ Delete account modal */}
-<div className={`modal ${delOpen ? 'modal-open' : ''}`}>
-  <div className="modal-box">
-    <h3 className="font-bold text-lg text-error">Delete your account</h3>
-    <div className="mt-3 space-y-2">
-      <p>This will permanently delete your account, sessions, credentials, and any linked OAuth accounts (Spotify included).</p>
-      <p>Tickets you’ve purchased will remain valid and visible to organizers, but they will no longer be associated with your account.</p>
-      <p>If you are hosting events, you must transfer or delete them first.</p>
-      <p className="mt-2">Type <code className="font-mono">DELETE</code> to confirm.</p>
-
-      <label className="input input-bordered flex items-center mt-1">
-        <input
-          type="text"
-          className="grow"
-          value={delConfirm}
-          onChange={(e) => setDelConfirm(e.target.value)}
-          placeholder="DELETE"
-        />
-      </label>
-
-      {delError && <p className="text-error text-sm">{delError}</p>}
-    </div>
-
-    <div className="modal-action">
-      <button
-        type="button"
-        className="btn btn-outline"
-        onClick={() => !delLoading && setDelOpen(false)}
-      >
-        Cancel
-      </button>
-      <button
-        type="button"
-        className={`btn btn-error ${delLoading || delConfirm !== 'DELETE' ? 'btn-disabled' : ''}`}
-        disabled={delLoading || delConfirm !== 'DELETE'}
-        onClick={async () => {
-        setDelError(null);
-        setDelLoading(true);
-        try {
-          const res = await fetch('/api/account/delete', { method: 'DELETE' });
-          const j = await res.json().catch(() => ({}));
-          if (!res.ok || !j?.ok) throw new Error(j?.error || `HTTP ${res.status}`);
-
-          // Clear client-side session + redirect
-          await signOut({ redirect: true, callbackUrl: '/' });
-        } catch (e: any) {
-          setDelError(e?.message ?? 'Failed to delete account');
-        } finally {
-          setDelLoading(false);
-        }
-      }}
-      >
-        {delLoading ? <span className="loading loading-spinner" /> : 'Delete account'}
-      </button>
-    </div>
-  </div>
-
-  <div
-    className="modal-backdrop fixed inset-0 bg-black/50 backdrop-blur-sm"
-    onClick={() => !delLoading && setDelOpen(false)}
-  />
-</div>
-</div>
-
-
-        </div>
-
-        
-        
-
       </div>
     </section>
   );

@@ -17,29 +17,32 @@ export default function LoginCard({ showPwd, setShowPwd, setMode }: AuthCardProp
     setPending(true);
 
     try {
-      // Always clear & use ONE stash key
       sessionStorage.removeItem('postVerifyLogin');
 
+      const lower = email.trim().toLowerCase();
       const res = await signIn('credentials', {
         redirect: false,
-        identifier: email.trim().toLowerCase(),
+        identifier: lower,
         password,
       });
 
-      // If NextAuth requires verify, stash creds then go to /verify
-      if (res?.url && res.url.includes('/verify')) {
-        sessionStorage.setItem('postVerifyLogin', JSON.stringify({
-          email: email.trim().toLowerCase(),
-          password,
-        }));
-        window.location.href = res.url;
+      const needsVerify =
+        res?.error === 'VerifyEmail' ||
+        (res?.url && new URL(res.url, window.location.origin).pathname.startsWith('/verify'));
+
+      if (needsVerify) {
+        sessionStorage.setItem(
+          'postVerifyLogin',
+          JSON.stringify({ email: lower, password })
+        );
+        window.location.href = `/verify?email=${encodeURIComponent(lower)}`;
         return;
       }
 
       if (res?.error) {
         setErrorMsg('Invalid email or password.');
       } else {
-        window.location.href = '/my-profile';
+        window.location.href = '/';
       }
     } catch {
       setErrorMsg('Unable to sign in. Please try again.');
