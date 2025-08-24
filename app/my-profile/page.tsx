@@ -35,7 +35,7 @@ export default async function MyProfilePage() {
 
   return (
     <main className="bg-sky-50 h-svh flex flex-col overflow-x-hidden">
-      <Navbar />
+      <Navbar/>
 
       <MyProfilePageCard
         left={<ProfilePage session={session} spotify={spotify} />}
