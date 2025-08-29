@@ -13,11 +13,11 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { prompt } = await req.json();
+    //const { prompt } = await req.json();
 
-    if (!prompt) {
-      return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
-    }
+    //if (!prompt) {
+    //  return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
+    //}
 
     // 2. Initialize the Gemini AI client
     const ai = new GoogleGenAI({ apiKey: geminiApiKey });
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     // Note: We use the 'gemini-2.5-flash-image-preview' model for image generation.
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image-preview",
-      contents: prompt,
+      contents: "Generate a high-quality image of a futuristic cityscape at sunset, with flying cars and neon lights.",
     });
 
     // 4. Process the response to extract the image data
