@@ -6,7 +6,7 @@ import { GoogleGenAI } from '@google/genai';
 // Get the API key from environment variables
 const geminiApiKey = process.env.GEMINI_API_KEY as string | undefined;
 
-export async function POST(req: Request) {
+export async function GET() {
   // 1. Basic validation and setup
   if (!geminiApiKey) {
     return NextResponse.json({ error: 'GEMINI_API_KEY not set' }, { status: 500 });
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     // Note: We use the 'gemini-2.5-flash-image-preview' model for image generation.
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image-preview",
-      contents: "Generate a high-quality image of a futuristic cityscape at sunset, with flying cars and neon lights.",
+      contents: "Generate a random image.",
     });
 
     // 4. Process the response to extract the image data
