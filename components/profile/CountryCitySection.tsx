@@ -189,7 +189,7 @@ export default function CountryCitySection({
         <span className="opacity-80 min-w-[4.5rem] self-start pl-1">Country</span>
         <label className="flex bg-base-100 justify-between items-center w-full p-2 pl-0 h-[var(--ctrl-h)] text-[var(--font-sz)]">
           <select
-            className="disabled:bg-base-100 select pl-2! w-full focus:outline-none"
+            className="disabled:bg-base-100 select pl-2! w-full focus:outline-none border-base-100 shadow-none"
             value={countryCode}
             onChange={(e) => {
               const code = e.target.value;
