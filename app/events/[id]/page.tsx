@@ -1,10 +1,13 @@
-// app/events/[id]/page.tsx
 import { notFound } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { prisma } from "@/lib/prisma";
 
+// ✅ v14 + v15 compatible helper
+type MaybePromise<T> = T | Promise<T>;
+type PageParams = { id: string };
+
 function fmtDateRange(start: Date, end?: Date | null) {
-  const fmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: undefined });
+  const fmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
   if (!end || start.toDateString() === end.toDateString()) return fmt.format(start);
   return `${fmt.format(start)} – ${fmt.format(end)}`;
 }
@@ -14,9 +17,16 @@ function buildMapsEmbed(venueName: string, address: string, city: string) {
   return `https://www.google.com/maps?output=embed&q=${encodeURIComponent(q)}`;
 }
 
-export default async function EventPage({ params }: { params: { id: string } }) {
+// 👇 note the type and the await
+export default async function EventPage({
+  params,
+}: {
+  params: MaybePromise<PageParams>;
+}) {
+  const { id } = await Promise.resolve(params);
+
   const event = await prisma.event.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       venue: true,
       lineup: { include: { artist: true }, orderBy: { slot: "asc" } },
@@ -27,6 +37,7 @@ export default async function EventPage({ params }: { params: { id: string } }) 
 
   const when = fmtDateRange(event.startAt, event.endAt ?? undefined);
   const mapUrl = buildMapsEmbed(event.venueName, event.venue?.address ?? "", event.city);
+
 
   return (
     <>
