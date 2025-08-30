@@ -415,8 +415,8 @@ export default function CreateEventShell() {
                 className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden"
                 style={{ scrollbarGutter: 'stable both-edges' }}
             >
-                <div className="flex justify-center p-8">
-                    <div className="card bg-base-300 border-base-300 rounded-box my-4 card-lg shadow-sm w-full max-w-3xl">
+                <div className="flex justify-center p-4 sm:p-8">
+                    <div className="card bg-base-300 border-base-300 rounded-box my-4 card-lg shadow-sm w-full max-w-112 sm:max-w-3xl">
                         <div className="card-body p-6 md:p-8 lg:p-12">
                             <h2 className="card-title self-center mb-4 whitespace-nowrap text-[var(--heading-sz)]">Event Details</h2>
                             <form className="space-y-4 h-full">
@@ -425,8 +425,8 @@ export default function CreateEventShell() {
                                     {/* --- CHANGED: Image container is now more dynamic --- */}
                                     <div className="flex-1">
                                         <div className="relative group w-full h-full rounded-box bg-base-200 overflow-hidden">
-
-                                            {/* Preview image (uploaded or generated) — falls back to a placeholder */}
+                                            
+                                            
                                             <img
                                                 src={posterUrl ?? "/placeholder.jpg"}
                                                 alt="Event poster preview"
