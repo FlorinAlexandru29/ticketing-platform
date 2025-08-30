@@ -24,6 +24,65 @@ enum HostVerificationStatus {
   REJECTED
 }
 
+enum EventType {
+  CONCERT
+  FESTIVAL
+}
+
+model Venue {
+  id          String   @id @default(cuid())
+  placeId     String   @unique
+  name        String
+  address     String
+  city        String
+  country     String?
+  countryCode String?  @db.VarChar(2)
+  lat         Float?
+  lng         Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  events Event[]
+}
+
+model Artist {
+  id        String   @id @default(cuid())
+  spotifyId String   @unique
+  name      String
+  genres    String[] // cache genres for fast render
+  image     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events EventArtist[]
+}
+
+model EventArtist {
+  eventId String
+  artistId String
+  slot     DateTime // when they play
+  order    Int?     // optional ordering for billing line
+
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, artistId])
+  @@index([artistId])
+  @@index([slot])
+}
+
+model TicketTier {
+  id          String   @id @default(cuid())
+  eventId     String
+  category    String
+  description String
+  priceCents  Int
+  currency    String   @default("RON")
+  quantity    Int
+
+  event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  @@index([eventId])
+}
 /**
  * ---------- NextAuth core tables ----------
  */
@@ -139,20 +198,37 @@ model Event {
   id          String   @id @default(cuid())
   title       String
   normalized  String // lowercased/trimmed title for dedupe
+
   description String
-  date        DateTime
-  venue       String
+  startAt     DateTime @map("date") // reuse existing 'date' column name to avoid data migration
+  endAt       DateTime?
+
+  eventType   EventType
+  posterUrl   String?
+
+  venueName   String   // snapshot string for easy querying
   city        String
+  country     String?
+  countryCode String?  @db.VarChar(2)
+
+  venueId String?
+  venue   Venue?  @relation(fields: [venueId], references: [id])
 
   hostId String
   host   User   @relation("HostEvents", fields: [hostId], references: [id])
 
-  tickets   Ticket[]
+  // keep your existing relation
+  tickets     Ticket[]
+
+  // new relations
+  ticketTiers TicketTier[]
+  lineup      EventArtist[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // prevent exact duplicates: same title (normalized) + date + venue + city
-  @@unique([normalized, date, venue, city])
+  // update unique to use startAt + venue (or venueName fallback)
+  @@unique([normalized, startAt, venueName, city])
 }
 
 model Ticket {
