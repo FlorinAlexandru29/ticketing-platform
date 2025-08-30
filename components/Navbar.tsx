@@ -4,13 +4,5 @@ import NavbarShell from './ui/NavBarShell';
 
 export default async function Navbar() {
   const session = await getServerSession(authOptions);
-  
-
-  return (
-    <NavbarShell session={session} />
-  );
+  return <NavbarShell session={session} />;
 }
-
-
-/*  */
-        

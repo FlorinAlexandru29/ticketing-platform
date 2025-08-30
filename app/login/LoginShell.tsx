@@ -14,8 +14,8 @@ export default function LoginShell() {
   const [showPwd, setShowPwd] = useState(false);
 
   return (
-    <main className="bg-sky-50 h-svh flex flex-col overflow-x-hidden">
-      <Navbar />
+    
+      
 
       <section
         className="relative flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-[1fr_1fr]
@@ -51,6 +51,6 @@ export default function LoginShell() {
         {/* Bottom dock on mobile */}
         <Dock dock={dock} setDock={setDock} />
       </section>
-    </main>
+    
   );
 }

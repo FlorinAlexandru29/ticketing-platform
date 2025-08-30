@@ -1,6 +1,5 @@
-
 'use client';
-import { faCheck, faComment, faEuroSign, faHashtag, faMagic, faMinus, faMoneyBill, faMoneyBill1Wave, faPen, faPencil, faPlus, faRepeat, faSpinner } from "@fortawesome/free-solid-svg-icons";
+import { faCheck, faComment, faEuroSign, faHashtag, faMagic, faMinus, faMoneyBill, faMoneyBill1Wave, faPen, faPencil, faPlus, faRepeat, faSpinner, faUpload } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { use, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
@@ -47,8 +46,8 @@ export default function CreateEventShell() {
         genres: string[];
         image?: string | null;
         time?: string;
-        albums?: Album[];         // ⬅️ now an array
-        albumsLoading?: boolean;  // ⬅️ show a tiny loader if you want
+        albums?: Album[];
+        albumsLoading?: boolean;
     };
 
     const [editingArtist, setEditingArtist] = useState(false);
@@ -61,29 +60,74 @@ export default function CreateEventShell() {
     const [eventDescription, setEventDescription] = useState('');
     const [generatingDescription, setGeneratingDescription] = useState(false);
 
+    // CHANGED: Added state for the generated image URL and loading status
+    const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+    const [generatingImage, setGeneratingImage] = useState(false);
+    const [posterUrl, setPosterUrl] = useState<string | null>(null);
+    const [posterSource, setPosterSource] = useState<'uploaded' | 'generated' | null>(null);
+    const [posterFile, setPosterFile] = useState<File | null>(null); // keep if you’ll later upload to your backend
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const objectUrlRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+        };
+    }, []);
+
+    function openFilePicker() {
+        fileInputRef.current?.click();
+    }
+
+    function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            alert('Please select an image file.');
+            return;
+        }
+
+        // optional size guard (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            alert('Image is too large (max 10MB).');
+            return;
+        }
+
+        // cleanup previous blob URL
+        if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+        const url = URL.createObjectURL(file);
+        objectUrlRef.current = url;
+
+        setPosterUrl(url);
+        setPosterSource('uploaded');
+        setPosterFile(file);
+    }
+
+
     const [eventType, setEventType] = useState('');
     const [eventName, setEventName] = useState('');
 
     async function generateEventDescription() {
-  if (!eventType || !eventName || selectedArtists.length === 0 || eventStartDate === '' || venueName === '') {
-    alert('Please fill in the event name, type, start date, venue and select at least one artist.');
-    return;
-  }
+        if (!eventType || !eventName || selectedArtists.length === 0 || eventStartDate === '' || venueName === '') {
+            alert('Please fill in the event name, type, start date, venue and select at least one artist.');
+            return;
+        }
 
-  setGeneratingDescription(true);
-  try {
-    const artistLines = selectedArtists.map((a) => {
-      const genres = a.genres?.slice(0, 3).join(', ') || '';
-      const albumsStr = (a.albums?.length ? a.albums : [])
-        .slice(0, 3)
-        .map(al => `"${al.name}" (${(al.release_date || '').slice(0,4)})`)
-        .join(', ') || '—';
-      return `- ${a.name}${genres ? ` — ${genres}` : ''}\n  Notable releases: ${albumsStr}`;
-    }).join('\n');
+        setGeneratingDescription(true);
+        try {
+            const artistLines = selectedArtists.map((a) => {
+                const genres = a.genres?.slice(0, 3).join(', ') || '';
+                const albumsStr = (a.albums?.length ? a.albums : [])
+                    .slice(0, 3)
+                    .map(al => `"${al.name}" (${(al.release_date || '').slice(0, 4)})`)
+                    .join(', ') || '—';
+                return `- ${a.name}${genres ? ` — ${genres}` : ''}\n  Notable releases: ${albumsStr}`;
+            }).join('\n');
 
-    const where = [venueName, (cityValue || cityQuery), countryName].filter(Boolean).join(', ');
+            const where = [venueName, (cityValue || cityQuery), countryName].filter(Boolean).join(', ');
 
-    const artistprompt = `
+            const artistprompt = `
         Search information about the following bands using the provided information ${artistLines}". 
         (Include in the search results from Facebook Page, Instagram Page, Spotify Page, Bandcamp, Metal Archives, Youtube or Wikipedia).
         Required information about the bands:
@@ -95,40 +139,40 @@ export default function CreateEventShell() {
         - Short description (1-2 sentences)
         - Band members
         `
-    console.log("Prompt:", artistprompt);
-    
+            console.log("Prompt:", artistprompt);
 
-    const res = await fetch('/api/gemini/generate-description', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ artistprompt }),
-    });
 
-    
-    if (!res.ok) throw new Error('Failed to generate description');
-    const data = await res.json();
-    const desciprtionPrompt = `
+            const res = await fetch('/api/gemini/generate-description', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ artistprompt }),
+            });
+
+
+            if (!res.ok) throw new Error('Failed to generate description');
+            const data = await res.json();
+            const desciprtionPrompt = `
     Use the provided information ${data.response}.
     You are an expert event promoter and copywriter.
     Write a ${eventType} music event structured description for an event with the name "${eventName}" happening at ${where} on ${eventStartDate + " " + eventEndDate}. The description should be engaging and informative. The description about the bands should also contain band members.
     Add a "Generated by Gemini Ai. Information might not be accurate" at the end of the description.`
-    console.log("Description Prompt:", desciprtionPrompt);
+            console.log("Description Prompt:", desciprtionPrompt);
 
-    const descRes = await fetch('/api/gemini/generate-description', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ desciprtionPrompt }),
-        });
-    if (!descRes.ok) throw new Error('Failed to generate description');
-    const dataDesc = await descRes.json();
-    setEventDescription(dataDesc.response || '');
-  } catch (e) {
-    console.error(e);
-    alert('Failed to generate description');
-  } finally {
-    setGeneratingDescription(false);
-  }
-}
+            const descRes = await fetch('/api/gemini/generate-description', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ desciprtionPrompt }),
+            });
+            if (!descRes.ok) throw new Error('Failed to generate description');
+            const dataDesc = await descRes.json();
+            setEventDescription(dataDesc.response || '');
+        } catch (e) {
+            console.error(e);
+            alert('Failed to generate description');
+        } finally {
+            setGeneratingDescription(false);
+        }
+    }
 
 
     async function fetchArtistAlbums(artistId: string): Promise<Album[]> {
@@ -310,28 +354,59 @@ export default function CreateEventShell() {
         };
     }, [countryCode, cityQuery]);
 
-    async function generateEventImage(){
+    // CHANGED: This function now updates the component's state to display the image.
+    async function generateEventImage() {
         if (!eventType || !eventName || selectedArtists.length === 0 || eventStartDate === '' || venueName === '') {
             alert('Please fill in the event name, type, start date, venue and select at least one artist.');
             return;
         }
-        const prompt = `Create a vibrant and engaging poster for a ${eventType} music event named "${eventName}" happening at ${venueName}, ${cityValue || cityQuery}, ${countryName} on ${eventStartDate + " " + eventEndDate}. The poster should feature the following artists: ${selectedArtists.map(a => a.name).join(', ')}. Use bold colors, dynamic typography, and imagery that reflects the energy and vibe of the event. Include essential details like date, time, venue, and headlining artists in a visually appealing way. The design should be eye-catching and suitable for both digital and print formats.`;
-        const res = await fetch('/api/gemini/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
-    });
-        if (!res.ok) {
-            const errorData = await res.json();
-            console.error('Error generating image:', errorData);
-            alert('Failed to generate image');
-            return;
+
+        setGeneratingImage(true); // Set loading state to true
+        setGeneratedImageUrl(null); // Clear any previous image
+
+        try {
+            const prompt = `
+            A professional graphic design poster for "${eventName}", a music ${eventType}.
+            The event name is a prominent logo with a random effect.
+            The artist names are listed clearly.
+            The venue and date are included in a smaller font.
+            Artist Information ${selectedArtists.map(a => { return `- ${a.name} (${a.genres?.slice(0, 3).join(', ') || ''})`; }).join('\n')}
+            Venue Information ${venueName}, ${cityValue || cityQuery}, ${countryName}
+            Date Information ${eventStartDate.slice(0, -6) + " " + eventEndDate.slice(0, -6)}
+            Watermak the image with "Generated by Gemini Ai".`;
+            console.log("Image Prompt:", prompt);
+            const res = await fetch('/api/gemini/generate-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, numberOfImages: 1 }), // Request one image
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.details || errorData.error || 'Failed to generate image');
+            }
+
+            const data = await res.json();
+            console.log('Generated image data:', data);
+
+            // Check if the API returned an image and create a data URL
+            if (data.images && data.images.length > 0) {
+                const firstImage = data.images[0];
+                const imageUrl = `data:${firstImage.mimeType};base64,${firstImage.data}`;
+                setGeneratedImageUrl(imageUrl); // Set the state with the new image URL
+                setPosterUrl(imageUrl);
+                setPosterSource('generated');
+            } else {
+                throw new Error("The model did not return any images.");
+            }
+        } catch (error: any) {
+            console.error('Error generating image:', error);
+            alert(`Failed to generate image: ${error.message}`);
+        } finally {
+            setGeneratingImage(false); // Set loading state to false
         }
-        const data = await res.json();
-        console.log('Generated image data:', data);
-        // You can now use `data.image.data` (base64) and `data.image.mimeType` to display the image
-        // For example, you could set it in state and render an <img> tag with a data URL
     }
+
 
     return (
         <>
@@ -346,12 +421,70 @@ export default function CreateEventShell() {
                             <h2 className="card-title self-center mb-4 whitespace-nowrap text-[var(--heading-sz)]">Event Details</h2>
                             <form className="space-y-4 h-full">
                                 <div className="flex flex-col sm:flex-row gap-4">
+
+                                    {/* --- CHANGED: Image container is now more dynamic --- */}
                                     <div className="flex-1">
-                                        <div className="relative ">
-                                        <Image height={"100"} width={"100"} className="w-full max-w-auto h-full bg-sky-500 rounded-box" src="/placeholder.png" alt="Event placeholder" />
-                                        <button type="button" onClick={generateEventImage} className="btn btn-sm btn-primary absolute right-2 bottom-2"> <FontAwesomeIcon icon={faMagic} className="mr-2" /> </button>
+                                        <div className="relative group w-full h-full rounded-box bg-base-200 overflow-hidden">
+
+                                            {/* Preview image (uploaded or generated) — falls back to a placeholder */}
+                                            <img
+                                                src={posterUrl ?? "/placeholder.jpg"}
+                                                alt="Event poster preview"
+                                                className="w-full h-full object-cover"
+                                            />
+
+                                            {/* Hover mask + controls */}
+                                            <div className="absolute inset-0 z-10 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={openFilePicker}
+                                                        className="btn btn-sm"
+                                                        disabled={generatingImage}
+                                                    >
+                                                        <FontAwesomeIcon icon={faUpload} className="mr-2" />
+                                                        Upload
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={generateEventImage}
+                                                        disabled={generatingImage}
+                                                        className="btn btn-sm btn-primary"
+                                                    >
+                                                        {generatingImage ? (
+                                                            <FontAwesomeIcon icon={faSpinner} spin />
+                                                        ) : (
+                                                            <>
+                                                                <FontAwesomeIcon icon={faMagic} className="mr-2" />
+                                                                Generate with AI
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Loading overlay for AI generation */}
+                                            {generatingImage && (
+                                                <div className="absolute inset-0 z-20 bg-black/60 flex items-center justify-center">
+                                                    <span className="loading loading-spinner loading-lg text-white"></span>
+                                                </div>
+                                            )}
+
+                                            {/* Hidden file input */}
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={onFileChange}
+                                            />
                                         </div>
                                     </div>
+
+
+                                    {/* --- END OF CHANGES --- */}
+
                                     <div className="flex flex-col gap-4 flex-1 justify-center">
                                         {/* Event Name + Type */}
                                         <div className="flex flex-col gap-2">
@@ -382,13 +515,13 @@ export default function CreateEventShell() {
                                             <fieldset className="fieldset flex-1">
                                                 <legend className="fieldset-legend">Start Date</legend>
                                                 <input type="datetime-local" onFocus={(e) => e.target.showPicker()}
-                                                onChange={e => setEventStartDate(e.target.value)}
+                                                    onChange={e => setEventStartDate(e.target.value)}
                                                     className="input w-full focus:outline-none focus:shadow-none bg-base-200 border border-base-300 shadow-none" />
                                             </fieldset>
                                             <fieldset className="fieldset flex-1">
                                                 <legend className="fieldset-legend">End Date</legend>
                                                 <input type="datetime-local" onFocus={(e) => e.target.showPicker()}
-                                                onChange={e => setEventEndDate(e.target.value)}
+                                                    onChange={e => setEventEndDate(e.target.value)}
                                                     className="input w-full focus:outline-none focus:shadow-none bg-base-200 border border-base-300 shadow-none" />
                                             </fieldset>
 
@@ -693,19 +826,21 @@ export default function CreateEventShell() {
 
                                         <button
                                             className="btn btn-circle btn-success"
-                                            onClick={(e) => { e.preventDefault(); if (ticketCategory !== '' && nrOfTickets !== '' && ticketPrice !== '' && ticketDescription !== ''){
-                                                setTicketType(prev => ([
-                                                    ...prev,
-                                                    {
-                                                        id: nextTicketId.current++,
-                                                        category: ticketCategory,
-                                                        description: ticketDescription,
-                                                        nrOfTickets: nrOfTickets,
-                                                        price: ticketPrice
-                                                    }
-                                                ]));
-                                                setTicketCategory(''); setNrOfTickets(''); setTicketPrice(''); setTicketDescription('');
-                                            }}}
+                                            onClick={(e) => {
+                                                e.preventDefault(); if (ticketCategory !== '' && nrOfTickets !== '' && ticketPrice !== '' && ticketDescription !== '') {
+                                                    setTicketType(prev => ([
+                                                        ...prev,
+                                                        {
+                                                            id: nextTicketId.current++,
+                                                            category: ticketCategory,
+                                                            description: ticketDescription,
+                                                            nrOfTickets: nrOfTickets,
+                                                            price: ticketPrice
+                                                        }
+                                                    ]));
+                                                    setTicketCategory(''); setNrOfTickets(''); setTicketPrice(''); setTicketDescription('');
+                                                }
+                                            }}
                                         >
                                             <FontAwesomeIcon icon={faPlus} />
                                         </button>

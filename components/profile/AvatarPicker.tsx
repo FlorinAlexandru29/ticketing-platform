@@ -75,7 +75,7 @@ export default function AvatarPicker({ initialAvatar, onUpdated }: Props) {
             width={80}
             height={80}
             className="object-cover"
-            onLoadingComplete={() => setImgLoading(false)}
+            onLoad={() => setImgLoading(false)}
           />
         ) : (
           <FontAwesomeIcon icon={faUser} style={{ width: '100%', height: '100%' }} />
