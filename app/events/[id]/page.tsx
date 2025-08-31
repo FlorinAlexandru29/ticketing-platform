@@ -1,3 +1,4 @@
+// app/events/[id]/page.tsx
 import { notFound } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { prisma } from "@/lib/prisma";
@@ -18,11 +19,7 @@ function buildMapsEmbed(venueName: string, address: string, city: string) {
 }
 
 // 👇 note the type and the await
-export default async function EventPage({
-  params,
-}: {
-  params: MaybePromise<PageParams>;
-}) {
+export default async function EventPage({ params }: { params: Promise<PageParams> }) {
   const { id } = await Promise.resolve(params);
 
   const event = await prisma.event.findUnique({
@@ -37,7 +34,6 @@ export default async function EventPage({
 
   const when = fmtDateRange(event.startAt, event.endAt ?? undefined);
   const mapUrl = buildMapsEmbed(event.venueName, event.venue?.address ?? "", event.city);
-
 
   return (
     <>
