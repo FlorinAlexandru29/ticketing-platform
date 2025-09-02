@@ -1,17 +1,16 @@
-import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
-export const runtime = "nodejs";       // ensure Node runtime for Prisma
-export const dynamic = "force-dynamic"; // avoid accidental edge/static
+export const runtime = "nodejs";        // Prisma needs Node, not Edge
+export const dynamic = "force-dynamic"; // avoid accidental static/edge
 
-type Context = { params: { userId: string } };
+type Params = Promise<{ userId: string }>;
 
-export async function PATCH(req: NextRequest, ctx: Context) {
-  const { userId } = ctx.params;
+export async function PATCH(req: Request, { params }: { params: Params }) {
+  const { userId } = await params;
 
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -26,8 +25,10 @@ export async function PATCH(req: NextRequest, ctx: Context) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json();
-  const parsed = z.object({ status: z.enum(["APPROVED", "REJECTED"]) }).safeParse(body);
+  const body = await req.json().catch(() => ({}));
+  const parsed = z
+    .object({ status: z.enum(["APPROVED", "REJECTED"]) })
+    .safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Bad input" }, { status: 400 });
   }
