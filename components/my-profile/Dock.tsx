@@ -1,5 +1,5 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUser } from '@fortawesome/free-solid-svg-icons';
+import { faInfo, faTicket, faUser } from '@fortawesome/free-solid-svg-icons';
 import { faSpotify } from '@fortawesome/free-brands-svg-icons';
 import { DockProps } from '@/components/auth/cards/types';
 export default function Dock({ dock, setDock }: DockProps) {
@@ -8,13 +8,13 @@ export default function Dock({ dock, setDock }: DockProps) {
     <>
       <div className="relative dock dock-md sm:hidden">
         <button className={`${dock === 'left' ? 'dock-active' : ''}`} onClick={() => setDock('left')}>
-          <FontAwesomeIcon icon={faUser} />
-          <span className="dock-label">Login</span>
+          <FontAwesomeIcon icon={faInfo} />
+          <span className="dock-label">Profile</span>
         </button>
 
         <button className={`${dock === 'right' ? 'dock-active' : ''}`} onClick={() => setDock('right')}>
-          <FontAwesomeIcon icon={faSpotify} />
-          <span className="dock-label">Spotify Login</span>
+          <FontAwesomeIcon icon={faTicket} />
+          <span className="dock-label">Tickets</span>
         </button>
       </div>
     </>
