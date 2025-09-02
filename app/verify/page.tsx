@@ -194,7 +194,8 @@ function VerifyContent() {
           </div>
 
           <p className="mt-3 text-xs opacity-60">
-            Prefer a link? Check the email—there’s a one-click verify link too.
+            Prefer a link? Check the email—there’s a one-click verify link too. <br/>
+            Please make sure to check the Spam folder
           </p>
         </div>
       </div>

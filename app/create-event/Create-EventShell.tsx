@@ -122,6 +122,7 @@ export default function CreateEventShell() {
           .join(', ') || '—';
         return `- ${a.name}${genres ? ` — ${genres}` : ''}\n  Notable releases: ${albumsStr}`;
       }).join('\n');
+      console.log(artistLines)
 
       const venueForPrompt = `${selectedVenue.name}, ${cityValue || cityQuery || ''}${countryName ? ', ' + countryName : ''}`;
 
@@ -679,6 +680,7 @@ export default function CreateEventShell() {
                         <legend className="fieldset-legend">End Date</legend>
                         <input type="datetime-local" onFocus={(e) => e.target.showPicker()}
                           onChange={e => setEventEndDate(e.target.value)}
+                          min={eventStartDate}
                           className="input w-full focus:outline-none focus:shadow-none bg-base-200 border border-base-300 shadow-none" />
                       </fieldset>
 
@@ -1095,7 +1097,7 @@ export default function CreateEventShell() {
                         <p><FontAwesomeIcon icon={faMoneyBill1Wave} /> {ticket.price} </p>
                         <p className="max-h-20 overflow-y-auto"><FontAwesomeIcon icon={faComment} /> {ticket.description} </p>
                         <button
-                          className="btn btn-circle btn-error"
+                          className="btn btn-circle btn-error ml-auto"
                           onClick={() => {
                             setTicketType(tt => tt.filter(t => t.id !== ticket.id));
                           }}>

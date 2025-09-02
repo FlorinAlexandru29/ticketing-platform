@@ -162,7 +162,7 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.SPOTIFY_CLIENT_SECRET!,
       authorization: {
         url: "https://accounts.spotify.com/authorize",
-        params: { scope: "user-read-email" },
+        params: { scope: "user-read-email user-follow-read" },
       },
       allowDangerousEmailAccountLinking: true,
     }),

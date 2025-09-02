@@ -62,7 +62,7 @@ export default function EventRow({
   }, [type]);
 
   return (
-    <section className="mb-10">
+    <section className="mb-5">
       <div className="flex items-baseline justify-between mb-3">
         <h2 className="text-xl font-bold">{heading}</h2>
         {loading ? (
@@ -85,16 +85,17 @@ export default function EventRow({
         ))}
 
         {/* Next page tile */}
-        {items.length > 0 && (
+        {items.length > 0 && hasNext && (
           <button
             className="w-56 min-w-56 h-40 self-center rounded-box border border-dashed border-base-300 bg-base-200 hover:bg-base-300 flex items-center justify-center shrink-0"
             onClick={() => hasNext && load(page + 1)}
-            disabled={!hasNext || loading}
+            disabled={loading}
             aria-label="Load next page"
           >
             <div className="text-center">
               <FontAwesomeIcon icon={faChevronRight} className="text-2xl mb-1" />
-              <div className="text-xs opacity-70">{hasNext ? "Next page" : "No more"}</div>
+
+              <div className="text-xs opacity-70">Next page</div>
             </div>
           </button>
         )}

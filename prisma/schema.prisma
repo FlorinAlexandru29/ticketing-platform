@@ -58,10 +58,10 @@ model Artist {
 }
 
 model EventArtist {
-  eventId String
+  eventId  String
   artistId String
   slot     DateTime // when they play
-  order    Int?     // optional ordering for billing line
+  order    Int? // optional ordering for billing line
 
   event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
   artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
@@ -72,17 +72,19 @@ model EventArtist {
 }
 
 model TicketTier {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   eventId     String
   category    String
   description String
   priceCents  Int
-  currency    String   @default("RON")
+  currency    String @default("RON")
   quantity    Int
 
-  event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
   @@index([eventId])
 }
+
 /**
  * ---------- NextAuth core tables ----------
  */
@@ -94,14 +96,16 @@ model User {
   image         String?
 
   // DATE only (no time zone drift)
-  birthdate     DateTime? @db.Date
+  birthdate DateTime? @db.Date
 
   // NEW: location
-  countryCode   String?   @db.VarChar(2) // ISO-3166 alpha-2, e.g., "RO"
-  country       String?                 // "Romania"
-  city          String?                 // "Cluj-Napoca"
+  countryCode        String?        @db.VarChar(2) // ISO-3166 alpha-2, e.g., "RO"
+  country            String? // "Romania"
+  city               String? // "Cluj-Napoca"
+  followedSpotifyIds String[]       @default([])
+  notifications      Notification[] // back-reference for Notification.user
 
-  role        Role       @default(USER)
+  role        Role         @default(USER)
   hostProfile HostProfile?
 
   credential            Credential?
@@ -195,21 +199,21 @@ model HostProfile {
  * ---------- Domain models ----------
  */
 model Event {
-  id          String   @id @default(cuid())
-  title       String
-  normalized  String // lowercased/trimmed title for dedupe
+  id         String @id @default(cuid())
+  title      String
+  normalized String // lowercased/trimmed title for dedupe
 
   description String
-  startAt     DateTime @map("date") // reuse existing 'date' column name to avoid data migration
+  startAt     DateTime  @map("date") // reuse existing 'date' column name to avoid data migration
   endAt       DateTime?
 
-  eventType   EventType
-  posterUrl   String?
+  eventType EventType
+  posterUrl String?
 
-  venueName   String   // snapshot string for easy querying
+  venueName   String // snapshot string for easy querying
   city        String
   country     String?
-  countryCode String?  @db.VarChar(2)
+  countryCode String? @db.VarChar(2)
 
   venueId String?
   venue   Venue?  @relation(fields: [venueId], references: [id])
@@ -218,14 +222,15 @@ model Event {
   host   User   @relation("HostEvents", fields: [hostId], references: [id])
 
   // keep your existing relation
-  tickets     Ticket[]
+  tickets Ticket[]
 
   // new relations
   ticketTiers TicketTier[]
   lineup      EventArtist[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  Notification Notification[]
 
   // update unique to use startAt + venue (or venueName fallback)
   @@unique([normalized, startAt, venueName, city])
@@ -234,11 +239,26 @@ model Event {
 model Ticket {
   id        String   @id @default(cuid())
   eventId   String
-  ownerId   String?   // ⬅️ make optional
+  ownerId   String? // ⬅️ make optional
   price     Int
   currency  String
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
   owner User? @relation(fields: [ownerId], references: [id], onDelete: SetNull) // ⬅️ SetNull
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  eventId   String? // ⬅️ link to the event
+  message   String
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([eventId])
 }

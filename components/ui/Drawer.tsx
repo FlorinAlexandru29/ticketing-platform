@@ -1,5 +1,7 @@
 'use client';
 
+import { faX } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useEffect, useRef } from 'react';
 
 type DrawerProps = {
@@ -59,10 +61,10 @@ export default function Drawer({ open, onClose, width = 320, children }: DrawerP
           transform: open ? 'translateX(0)' : `translateX(${width}px)`,
         }}
       >
-        <div className="h-full overflow-y-auto p-4">
+        <div className="flex flex-col h-full p-4">
           {/* Close button */}
-          <button className="btn btn-sm btn-ghost mb-4" onClick={onClose} aria-label="Close menu">
-            ✕
+          <button className="btn btn-neutral btn-sm mb-4 self-end" onClick={onClose} aria-label="Close menu">
+            <FontAwesomeIcon icon={faX} />
           </button>
           {children}
         </div>

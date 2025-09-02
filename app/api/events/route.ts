@@ -5,10 +5,12 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { createClient } from "@supabase/supabase-js";
+import { sendNewEventEmail } from "@/lib/mailer";
 
-const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
-  ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
-  : null;
+const supabase =
+  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+    : null;
 
 const ArtistSchema = z.object({
   spotifyId: z.string().min(1),
@@ -49,8 +51,6 @@ const PayloadSchema = z.object({
   venue: VenueSchema,
   artists: z.array(ArtistSchema).min(1),
   ticketTiers: z.array(TicketTierSchema).min(1),
-
-  // Poster: optional; if provided, must be a data URL (we support both generated and uploaded)
   posterDataUrl: z.string().startsWith("data:").optional(),
 });
 
@@ -87,7 +87,6 @@ export async function POST(req: Request) {
     const raw = await req.json();
     const input = PayloadSchema.parse(raw);
 
-    // Convert strings to Date
     const startAt = new Date(input.startAt);
     const endAt = input.endAt ? new Date(input.endAt) : null;
     if (endAt && endAt < startAt) {
@@ -96,8 +95,7 @@ export async function POST(req: Request) {
 
     const normalized = normalizeTitle(input.title);
 
-    const result = await prisma.$transaction(async (tx) => {
-      // Upsert Venue
+    const eventId = await prisma.$transaction(async (tx) => {
       const venue = await tx.venue.upsert({
         where: { placeId: input.venue.placeId },
         update: {
@@ -121,7 +119,6 @@ export async function POST(req: Request) {
         },
       });
 
-      // Create Event (poster added later)
       const event = await tx.event.create({
         data: {
           title: input.title,
@@ -139,19 +136,17 @@ export async function POST(req: Request) {
         },
       });
 
-      // Upsert artists and build lineup rows
       const artists = await Promise.all(
         input.artists.map((a) =>
           tx.artist.upsert({
             where: { spotifyId: a.spotifyId },
             update: { name: a.name, genres: a.genres || [], image: a.image ?? undefined },
             create: { spotifyId: a.spotifyId, name: a.name, genres: a.genres || [], image: a.image ?? undefined },
-            select: { id: true, spotifyId: true },
+            select: { id: true, spotifyId: true, name: true },
           })
         )
       );
 
-      // Lineup
       await tx.eventArtist.createMany({
         data: artists.map((art, idx) => ({
           eventId: event.id,
@@ -161,7 +156,6 @@ export async function POST(req: Request) {
         })),
       });
 
-      // Ticket Tiers
       await tx.ticketTier.createMany({
         data: input.ticketTiers.map((t) => ({
           eventId: event.id,
@@ -173,7 +167,6 @@ export async function POST(req: Request) {
         })),
       });
 
-      // Poster (optional)
       if (input.posterDataUrl) {
         const posterUrl = await uploadPosterFromDataUrl(input.posterDataUrl, event.id);
         if (posterUrl) {
@@ -184,13 +177,86 @@ export async function POST(req: Request) {
       return event.id;
     });
 
-    return NextResponse.json({ id: result });
+    // --- Notify + email (async, best-effort)
+    (async () => {
+      try {
+        const ev = await prisma.event.findUnique({
+          where: { id: eventId },
+          select: {
+            id: true,
+            title: true,
+            startAt: true,
+            venueName: true,
+            city: true,
+            lineup: { select: { artist: { select: { spotifyId: true, name: true } } } },
+          },
+        });
+        if (!ev) return;
+
+        const lineupIds = ev.lineup.map((l) => l.artist.spotifyId).filter(Boolean) as string[];
+        const topNames = ev.lineup.map((l) => l.artist.name).filter(Boolean).slice(0, 3);
+        const namesText =
+          topNames.length === 1
+            ? topNames[0]
+            : topNames.length === 2
+            ? `${topNames[0]} & ${topNames[1]}`
+            : `${topNames[0]}, ${topNames[1]} & ${topNames[2]}${ev.lineup.length > 3 ? "…" : ""}`;
+
+        // Per your latest requirement: notify users whose city matches AND who follow any lineup artist
+        const targets = lineupIds.length
+          ? await prisma.user.findMany({
+              where: {
+                city: ev.city,
+                followedSpotifyIds: { hasSome: lineupIds },
+              },
+              select: { id: true, email: true },
+            })
+          : [];
+
+        if (!targets.length) return;
+
+        const dateText = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(ev.startAt);
+        const notifMsg = `${namesText} ${ev.lineup.length > 1 ? "are" : "is"} playing in your city on ${dateText}. Tap to view.`;
+
+        await prisma.notification.createMany({
+          data: targets.map((u) => ({
+            userId: u.id,
+            eventId: ev.id,
+            message: notifMsg,
+          })),
+          skipDuplicates: true,
+        });
+
+        const base =
+          process.env.NEXTAUTH_URL ||
+          (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+        const link = `${base}/events/${ev.id}`;
+
+        await Promise.allSettled(
+          targets
+            .filter((u) => !!u.email)
+            .map((u) =>
+              sendNewEventEmail({
+                to: u.email as string,
+                title: ev.title,
+                dateText,
+                venueName: ev.venueName,
+                city: ev.city,
+                link,
+              })
+            )
+        );
+      } catch (e) {
+        console.error("notify error", e);
+      }
+    })();
+
+    return NextResponse.json({ id: eventId });
   } catch (err: any) {
     console.error(err);
     if (err?.name === "ZodError") {
       return NextResponse.json({ error: err.flatten() }, { status: 400 });
     }
-    // unique constraint on normalized+startAt+venueName+city
     if (String(err?.message || "").includes("Unique constraint failed")) {
       return NextResponse.json({ error: "An event with the same title/date/venue already exists." }, { status: 409 });
     }
@@ -200,7 +266,7 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const typeParam = searchParams.get("type"); // "concert" | "festival" | "CONCERT" | "FESTIVAL" | null
+  const typeParam = searchParams.get("type");
   const page = Math.max(1, Number(searchParams.get("page") || 1));
   const pageSize = Math.min(24, Math.max(1, Number(searchParams.get("pageSize") || 10)));
   const upcoming = (searchParams.get("upcoming") ?? "true") !== "false";

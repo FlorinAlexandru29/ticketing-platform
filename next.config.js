@@ -39,6 +39,15 @@ const nextConfig = {
     // Or Option 2: simple list (less flexible)
     // domains: ['i.scdn.co', 'scontent-tpe1-1.xx.fbcdn.net', 'platform-lookaside.fbsbx.com'],
   },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Make any accidental client import of Prisma fail fast at build time
+      config.resolve.alias['@prisma/client'] = false;
+      config.resolve.alias['@/lib/prisma'] = false;
+      config.resolve.alias['prisma'] = false;
+    }
+    return config;
+  },
 };
 
 module.exports = nextConfig;

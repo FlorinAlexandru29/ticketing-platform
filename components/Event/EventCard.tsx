@@ -22,7 +22,7 @@ export default function EventCard({ ev }: { ev: EventLite }) {
   return (
     <Link
       href={`/events/${ev.id}`}
-      className="group w-56 min-w-56 rounded-box overflow-hidden border border-base-300 bg-base-200 hover:bg-base-300 transition-colors duration-200"
+      className="group w-56 min-w-30 rounded-box overflow-hidden border border-base-200 bg-base-100 hover:bg-base-200 transition-colors duration-200"
     >
       <div className="relative h-40 w-full overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -31,9 +31,6 @@ export default function EventCard({ ev }: { ev: EventLite }) {
           alt={ev.title}
           className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
-        <span className="absolute left-2 top-2 badge badge-primary">
-          {ev.eventType === "CONCERT" ? "Concert" : "Festival"}
-        </span>
       </div>
       <div className="p-3 text-left">
         <h3 className="font-semibold line-clamp-2">{ev.title}</h3>

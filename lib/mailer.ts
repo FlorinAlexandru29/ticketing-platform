@@ -34,3 +34,27 @@ export async function sendVerificationEmail(opts: {
     html,
   });
 }
+
+export async function sendNewEventEmail(opts: {
+  to: string;
+  title: string;
+  dateText: string;
+  venueName: string;
+  city?: string | null;
+  link: string;
+}) {
+  const { to, title, dateText, venueName, city, link } = opts;
+  const html = `
+  <div style="font-family:ui-sans-serif,system-ui,-apple-system;">
+    <h2>New event: ${title}</h2>
+    <p><strong>When:</strong> ${dateText}</p>
+    <p><strong>Where:</strong> ${venueName}${city ? ", " + city : ""}</p>
+    <p><a href="${link}">View event</a></p>
+  </div>`;
+  await transporter.sendMail({
+    from: process.env.MAIL_FROM || `"StageList" <notify@stagelist.local>`,
+    to,
+    subject: `New event: ${title}`,
+    html,
+  });
+}
