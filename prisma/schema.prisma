@@ -29,6 +29,13 @@ enum EventType {
   FESTIVAL
 }
 
+enum PurchaseStatus {
+  PENDING
+  PAID
+  CANCELED
+  EXPIRED
+}
+
 model Venue {
   id          String   @id @default(cuid())
   placeId     String   @unique
@@ -71,20 +78,6 @@ model EventArtist {
   @@index([slot])
 }
 
-model TicketTier {
-  id          String @id @default(cuid())
-  eventId     String
-  category    String
-  description String
-  priceCents  Int
-  currency    String @default("RON")
-  quantity    Int
-
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-
-  @@index([eventId])
-}
-
 /**
  * ---------- NextAuth core tables ----------
  */
@@ -95,15 +88,13 @@ model User {
   emailVerified DateTime?
   image         String?
 
-  // DATE only (no time zone drift)
   birthdate DateTime? @db.Date
 
-  // NEW: location
-  countryCode        String?        @db.VarChar(2) // ISO-3166 alpha-2, e.g., "RO"
-  country            String? // "Romania"
-  city               String? // "Cluj-Napoca"
+  countryCode        String?        @db.VarChar(2)
+  country            String?
+  city               String?
   followedSpotifyIds String[]       @default([])
-  notifications      Notification[] // back-reference for Notification.user
+  notifications      Notification[]
 
   role        Role         @default(USER)
   hostProfile HostProfile?
@@ -114,8 +105,9 @@ model User {
   accounts Account[]
   sessions Session[]
 
-  tickets Ticket[]
-  events  Event[]  @relation("HostEvents")
+  tickets   Ticket[]
+  events    Event[]    @relation("HostEvents")
+  purchases Purchase[] // NEW
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -201,16 +193,16 @@ model HostProfile {
 model Event {
   id         String @id @default(cuid())
   title      String
-  normalized String // lowercased/trimmed title for dedupe
+  normalized String
 
   description String
-  startAt     DateTime  @map("date") // reuse existing 'date' column name to avoid data migration
+  startAt     DateTime  @map("date")
   endAt       DateTime?
 
   eventType EventType
   posterUrl String?
 
-  venueName   String // snapshot string for easy querying
+  venueName   String
   city        String
   country     String?
   countryCode String? @db.VarChar(2)
@@ -221,31 +213,91 @@ model Event {
   hostId String
   host   User   @relation("HostEvents", fields: [hostId], references: [id], onDelete: Cascade)
 
-  // keep your existing relation
-  tickets Ticket[]
-
-  // new relations
+  tickets     Ticket[]
   ticketTiers TicketTier[]
   lineup      EventArtist[]
+  purchases   Purchase[] // NEW
 
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   Notification Notification[]
 
-  // update unique to use startAt + venue (or venueName fallback)
   @@unique([normalized, startAt, venueName, city])
+}
+
+model TicketTier {
+  id          String @id @default(cuid())
+  eventId     String
+  category    String
+  description String
+  priceCents  Int
+  currency    String @default("RON")
+  quantity    Int
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  // NEW: opposite sides
+  tickets       Ticket[] // ↔ Ticket.tier
+  purchaseItems PurchaseItem[] // ↔ PurchaseItem.tier
+
+  @@index([eventId])
 }
 
 model Ticket {
   id        String   @id @default(cuid())
   eventId   String
-  ownerId   String? // ⬅️ make optional
+  ownerId   String?
   price     Int
   currency  String
   createdAt DateTime @default(now())
 
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  owner User? @relation(fields: [ownerId], references: [id], onDelete: SetNull) // ⬅️ SetNull
+  // NEW (you already added these)
+  tierId      String?
+  purchaseId  String?
+  code        String    @unique
+  validatedAt DateTime?
+
+  event    Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  owner    User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  tier     TicketTier? @relation(fields: [tierId], references: [id], onDelete: SetNull)
+  purchase Purchase?   @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@index([ownerId])
+  @@index([tierId])
+  @@index([purchaseId])
+}
+
+model Purchase {
+  id              String         @id @default(cuid())
+  userId          String
+  eventId         String
+  currency        String         @default("RON")
+  totalCents      Int
+  status          PurchaseStatus @default(PENDING)
+  stripeSessionId String?        @unique
+  stripePaymentId String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event   Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  items   PurchaseItem[]
+  tickets Ticket[]
+}
+
+model PurchaseItem {
+  id             String @id @default(cuid())
+  purchaseId     String
+  tierId         String
+  quantity       Int
+  unitPriceCents Int
+
+  purchase Purchase   @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  tier     TicketTier @relation(fields: [tierId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseId])
+  @@index([tierId])
 }
 
 model Notification {

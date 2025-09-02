@@ -20,6 +20,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                   <li className="menu-title">Host</li>
                   <li><Link href="/dashboard/host/events">My Events</Link></li>
                   <li><Link href="/dashboard/host/create-event">Create Event</Link></li>
+                  <li><Link href="/dashboard/host/verify">Ticket Validation</Link></li>
                 </>
               )}
               {role === "ADMIN" && (

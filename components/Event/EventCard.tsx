@@ -22,9 +22,9 @@ export default function EventCard({ ev }: { ev: EventLite }) {
   return (
     <Link
       href={`/events/${ev.id}`}
-      className="group w-40 sm:w-56 shrink-0 rounded-box overflow-hidden border border-base-200 bg-base-100 hover:bg-base-200 transition-colors duration-200"
+      className="group w-35 sm:w-40 md:w-50 shrink-0 rounded-box overflow-hidden border border-base-200 bg-base-100 hover:bg-base-200 transition-colors duration-200"
     >
-      <div className="relative h-40 w-full overflow-hidden">
+      <div className="relative h-35 sm:h-40 md:h-50 w-full overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={ev.posterUrl ?? "/placeholder.jpg"}
