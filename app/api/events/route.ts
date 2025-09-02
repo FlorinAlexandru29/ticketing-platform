@@ -7,6 +7,9 @@ import { authOptions } from "@/lib/auth-options";
 import { createClient } from "@supabase/supabase-js";
 import { sendNewEventEmail } from "@/lib/mailer";
 
+export const runtime = "nodejs";        // ensure Node for Prisma/email/Supabase
+export const dynamic = "force-dynamic";  // avoid accidental edge/static
+
 const supabase =
   process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
     ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -90,7 +93,10 @@ export async function POST(req: Request) {
     const startAt = new Date(input.startAt);
     const endAt = input.endAt ? new Date(input.endAt) : null;
     if (endAt && endAt < startAt) {
-      return NextResponse.json({ error: "End date cannot be before start date." }, { status: 400 });
+      return NextResponse.json(
+        { error: "End date cannot be before start date." },
+        { status: 400 }
+      );
     }
 
     const normalized = normalizeTitle(input.title);
@@ -177,7 +183,7 @@ export async function POST(req: Request) {
       return event.id;
     });
 
-    // --- Notify + email (async, best-effort)
+    // Async notifications + email (best-effort)
     (async () => {
       try {
         const ev = await prisma.event.findUnique({
@@ -202,12 +208,13 @@ export async function POST(req: Request) {
             ? `${topNames[0]} & ${topNames[1]}`
             : `${topNames[0]}, ${topNames[1]} & ${topNames[2]}${ev.lineup.length > 3 ? "…" : ""}`;
 
-        // Per your latest requirement: notify users whose city matches AND who follow any lineup artist
+        // Only Spotify-linked users in same city who follow any lineup artist
         const targets = lineupIds.length
           ? await prisma.user.findMany({
               where: {
                 city: ev.city,
                 followedSpotifyIds: { hasSome: lineupIds },
+                accounts: { some: { provider: "spotify" } },
               },
               select: { id: true, email: true },
             })
@@ -215,7 +222,9 @@ export async function POST(req: Request) {
 
         if (!targets.length) return;
 
-        const dateText = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(ev.startAt);
+        const dateText = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
+          ev.startAt
+        );
         const notifMsg = `${namesText} ${ev.lineup.length > 1 ? "are" : "is"} playing in your city on ${dateText}. Tap to view.`;
 
         await prisma.notification.createMany({
@@ -258,7 +267,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: err.flatten() }, { status: 400 });
     }
     if (String(err?.message || "").includes("Unique constraint failed")) {
-      return NextResponse.json({ error: "An event with the same title/date/venue already exists." }, { status: 409 });
+      return NextResponse.json(
+        { error: "An event with the same title/date/venue already exists." },
+        { status: 409 }
+      );
     }
     return NextResponse.json({ error: "Failed to create event" }, { status: 500 });
   }
@@ -276,8 +288,8 @@ export async function GET(req: Request) {
     where.eventType = ["CONCERT", "FESTIVAL"].includes(typeParam.toUpperCase())
       ? typeParam.toUpperCase()
       : typeParam.toLowerCase() === "concert"
-        ? "CONCERT"
-        : "FESTIVAL";
+      ? "CONCERT"
+      : "FESTIVAL";
   }
   if (upcoming) where.startAt = { gte: new Date() };
 

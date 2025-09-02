@@ -2,20 +2,25 @@
 import { useEffect, useState } from "react";
 import EventCard from "./EventCard";
 
-export default function RecommendedRow() {
+export default function RecommendedRow({ hasSpotify }: { hasSpotify: boolean }) {
   const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!hasSpotify) return; // only fetch for Spotify-linked accounts
     (async () => {
       setLoading(true);
-      const res = await fetch("/api/events/recommended?limit=10", { cache: "no-store" });
-      const j = await res.json();
-      setItems(j.items || []);
-      setLoading(false);
+      try {
+        const res = await fetch("/api/events/recommended?limit=10", { cache: "no-store" });
+        const j = await res.json().catch(() => ({}));
+        setItems(Array.isArray(j.items) ? j.items : []);
+      } finally {
+        setLoading(false);
+      }
     })();
-  }, []);
+  }, [hasSpotify]);
 
+  if (!hasSpotify) return null;
   if (loading) return <div className="mb-6"><span className="loading loading-dots loading-sm" /></div>;
   if (items.length === 0) return null;
 
