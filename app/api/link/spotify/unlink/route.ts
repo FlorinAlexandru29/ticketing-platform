@@ -1,4 +1,3 @@
-// app/api/link/spotify/unlink/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
@@ -15,7 +14,6 @@ export async function POST() {
   });
   if (!acct) return NextResponse.json({ ok: true }); // already unlinked
 
-  // Is Spotify the only login method?
   const [otherOauthCount, hasCredential] = await Promise.all([
     prisma.account.count({
       where: { userId, provider: { not: "spotify" } },

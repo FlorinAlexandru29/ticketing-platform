@@ -23,15 +23,19 @@ export default function NavbarShell({ session, role }: Props) {
   const [open, setOpen] = useState(false);
   const isAuthed = !!session?.user;
 
+  // 🔐 Only show notifications if user has Spotify linked
+  const providers = (session?.user as any)?.oauthProviders as string[] | undefined;
+  const hasSpotify = Array.isArray(providers) && providers.includes('spotify');
+
   // Notifications UI state
   const [notifCount, setNotifCount] = useState<number>(0);
   const [notifs, setNotifs] = useState<Notif[] | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
   const loadingRef = useRef(false);
 
-  // Initial unread count
+  // Initial unread count (only if Spotify-linked)
   useEffect(() => {
-    if (!isAuthed) return;
+    if (!isAuthed || !hasSpotify) return;
     let alive = true;
     (async () => {
       try {
@@ -41,14 +45,14 @@ export default function NavbarShell({ session, role }: Props) {
       } catch {}
     })();
     return () => { alive = false; };
-  }, [isAuthed]);
+  }, [isAuthed, hasSpotify]);
 
   // Toggle dropdown + fetch (and mark read once on open)
   async function toggleNotifDropdown() {
     const nextOpen = !notifOpen;
     setNotifOpen(nextOpen);
 
-    if (nextOpen && isAuthed && !loadingRef.current) {
+    if (nextOpen && isAuthed && hasSpotify && !loadingRef.current) {
       loadingRef.current = true;
       try {
         const r = await fetch("/api/notifications?markRead=1", { cache: "no-store" });
@@ -70,7 +74,7 @@ export default function NavbarShell({ session, role }: Props) {
     try {
       await fetch(`/api/notifications/${id}`, { method: "DELETE" });
     } catch {
-      // best-effort; if it fails silently, user just won't see it anymore in UI
+      // best-effort
     }
   }
 
@@ -80,7 +84,7 @@ export default function NavbarShell({ session, role }: Props) {
         <Link href="/" className="btn btn-soft text-xl">StageList</Link>
       </div>
       <div className="flex-none ml-4 flex items-center gap-2">
-        {isAuthed && (
+        {isAuthed && hasSpotify && (
           <div className="dropdown dropdown-end">
             <button
               className="btn dark:btn-ghost btn-neutral btn-outline btn-circle"
@@ -146,46 +150,44 @@ export default function NavbarShell({ session, role }: Props) {
       </div>
 
       <Drawer open={open} onClose={() => setOpen(false)} width={320}>
-  <ul className="menu dark:bg-base-200 rounded-box w-full h-full justify-between">
-    {isAuthed ? (
-      <>
-        {/* One <li> with both links */}
-        <li className="mt-2">
-          
-            <Link href="/my-profile" className="hover:underline link-neutral dark:text-neutral-content" onClick={() => setOpen(false)}>
-              My Profile
-            </Link>
-            {(role === "HOST" || role === "ADMIN") && (
-              <Link href="/dashboard" className="hover:underline link-neutral dark:text-neutral-content" onClick={() => setOpen(false)}>
-                Dashboard
-              </Link>
-            )}
-          
-        </li>
+        <ul className="menu dark:bg-base-200 rounded-box w-full h-full justify-between">
+          {isAuthed ? (
+            <>
+              {/* One <li> with both links */}
+              <li className="mt-2">
+                <Link href="/my-profile" className="hover:underline link-neutral dark:text-neutral-content" onClick={() => setOpen(false)}>
+                  My Profile
+                </Link>
+                {(role === "HOST" || role === "ADMIN") && (
+                  <Link href="/dashboard" className="hover:underline link-neutral dark:text-neutral-content" onClick={() => setOpen(false)}>
+                    Dashboard
+                  </Link>
+                )}
+              </li>
 
-        {/* Separate <li> for logout */}
-        <li>
-          <button
-            className="btn btn-neutral btn-sm"
-            onClick={() => {
-              setOpen(false);
-              signOut();
-            }}
-          >
-            Logout
-          </button>
-        </li>
-      </>
-    ) : (
-      // Separate <li> for login
-      <li>
-        <Link href="/login" className="btn btn-neutral btn-sm" onClick={() => setOpen(false)}>
-          Login
-        </Link>
-      </li>
-    )}
-  </ul>
-</Drawer>
+              {/* Separate <li> for logout */}
+              <li>
+                <button
+                  className="btn btn-neutral btn-sm"
+                  onClick={() => {
+                    setOpen(false);
+                    signOut();
+                  }}
+                >
+                  Logout
+                </button>
+              </li>
+            </>
+          ) : (
+            // Separate <li> for login
+            <li>
+              <Link href="/login" className="btn btn-neutral btn-sm" onClick={() => setOpen(false)}>
+                Login
+              </Link>
+            </li>
+          )}
+        </ul>
+      </Drawer>
     </nav>
   );
 }

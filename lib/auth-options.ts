@@ -70,7 +70,7 @@ async function tryUpsertBirthdateFromProvider(params: {
 async function refreshSpotifyAccessToken(token: JWT): Promise<JWT> {
   const body = new URLSearchParams({
     grant_type: "refresh_token",
-    refresh_token: String(token.refreshToken || ""),
+    refresh_token: String((token as any).refreshToken || ""),
   });
 
   const res = await fetch("https://accounts.spotify.com/api/token", {
@@ -95,14 +95,11 @@ async function refreshSpotifyAccessToken(token: JWT): Promise<JWT> {
     ...token,
     accessToken: data.access_token as string,
     accessTokenExpires: Date.now() + expiresInMs,
-    refreshToken: (data.refresh_token as string) || (token.refreshToken as string),
-  };
+    refreshToken: (data.refresh_token as string) || (token as any).refreshToken,
+  } as any;
 }
 
-/**
- * Merge “oldUserId” into “targetUserId” when a provider account (e.g. Spotify) is
- * already linked to a different user.
- */
+/** Merge “oldUserId” into “targetUserId” when a provider account is already linked elsewhere. */
 async function mergeUsersOnLinkedAccount(params: {
   targetUserId: string;
   provider: string;
@@ -189,7 +186,6 @@ export const authOptions: NextAuthOptions = {
 
         // ⛔ Block session creation until verified
         if (!user.emailVerified) {
-          // Client can check for this exact message via signIn(..., { redirect: false })
           throw new Error("VerifyEmail");
         }
 
@@ -229,12 +225,9 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
 
-    // 🔁 Preserve /verify redirects; otherwise allow same-origin URLs
     async redirect({ url, baseUrl }) {
       const u = new URL(url, baseUrl);
-      if (u.origin === baseUrl && u.pathname.startsWith("/verify")) {
-        return u.toString();
-      }
+      if (u.origin === baseUrl && u.pathname.startsWith("/verify")) return u.toString();
       if (u.origin === baseUrl) return u.toString();
       return baseUrl;
     },
@@ -249,8 +242,8 @@ export const authOptions: NextAuthOptions = {
           const expiresAtMs =
             (account.expires_at ? account.expires_at * 1000 : Date.now()) ||
             (account.expires_in ? Date.now() + Number(account.expires_in) * 1000 : Date.now() + 3600_000);
-          (token as any).accessToken = account.access_token;
-          (token as any).refreshToken = account.refresh_token;
+          (token as any).accessToken = (account as any).access_token;
+          (token as any).refreshToken = (account as any).refresh_token;
           (token as any).accessTokenExpires = expiresAtMs;
         }
       }
@@ -261,7 +254,7 @@ export const authOptions: NextAuthOptions = {
           try {
             return await refreshSpotifyAccessToken(token);
           } catch {
-            return { ...token, accessToken: undefined, accessTokenExpires: 0 };
+            return { ...token, accessToken: undefined, accessTokenExpires: 0 } as any;
           }
         }
       }
@@ -286,30 +279,48 @@ export const authOptions: NextAuthOptions = {
           }),
         ]);
 
-        if (dbUser?.image) (token as any).picture = dbUser.image;
-        if (typeof dbUser?.name === "string") token.name = dbUser.name;
+        // 🚫 If the user no longer exists, scrub token so session will be treated as signed-out
+        if (!dbUser) {
+          return {
+            ...token,
+            userDeleted: true,
+          } as any;
+        }
 
-        (token as any).birthdate = dbUser?.birthdate
+        if (dbUser.image) (token as any).picture = dbUser.image;
+        if (typeof dbUser.name === "string") token.name = dbUser.name;
+
+        (token as any).birthdate = dbUser.birthdate
           ? new Date(dbUser.birthdate).toISOString().slice(0, 10)
           : null;
 
-        (token as any).countryCode = dbUser?.countryCode ?? null;
-        (token as any).country     = dbUser?.country ?? null;
-        (token as any).city        = dbUser?.city ?? null;
+        (token as any).countryCode = dbUser.countryCode ?? null;
+        (token as any).country     = dbUser.country ?? null;
+        (token as any).city        = dbUser.city ?? null;
 
-        (token as any).hasCredentials = !!dbUser?.credential?.id;
+        (token as any).hasCredentials = !!dbUser.credential?.id;
         (token as any).oauthProviders = accounts.map(a => a.provider);
 
-        // expose verification status for middleware/UI
-        (token as any).emailVerified = !!dbUser?.emailVerified;
+        (token as any).emailVerified = !!dbUser.emailVerified;
       }
 
       return token;
     },
 
     async session({ session, token }) {
+      // ✅ Do NOT return null (keeps TS happy). Instead, scrub the user so the app treats them as signed out.
+      if ((token as any).userDeleted) {
+        // Remove user info; apps using `session?.user?.id` will behave as logged out
+        (session as any).user = undefined;
+        // Optional flag if you want to detect this condition client-side
+        (session as any).invalidatedAt = new Date().toISOString();
+        // Also clear convenience flags
+        (session as any).emailVerified = false;
+        return session;
+      }
+
       if (session.user) {
-        if (token.sub) session.user.id = token.sub as string;
+        if (token.sub) (session.user as any).id = token.sub as string;
 
         const pict = (token as any).picture as string | undefined;
         if (pict) session.user.image = pict;
@@ -328,7 +339,6 @@ export const authOptions: NextAuthOptions = {
         (session as any).accessToken = (token as any).accessToken as string;
       }
 
-      // handy flag on session
       (session as any).emailVerified = Boolean((token as any).emailVerified);
 
       return session;

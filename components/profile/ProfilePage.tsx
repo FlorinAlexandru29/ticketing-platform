@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import AvatarPicker from './AvatarPicker';
 import EditableName from './NameField';
@@ -42,6 +42,25 @@ function pickAvatar(session: Props['session'], spotify: SpotifyInfo) {
 
 export default function ProfilePage({ session, spotify }: Props) {
   const router = useRouter();
+
+  // Client-side guard in case the user was deleted after SSR
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch('/api/auth/session', { cache: 'no-store' });
+        const j = await r.json();
+        if (alive && !j?.user) {
+          router.replace('/');
+        }
+      } catch {
+        // network hiccup: do nothing
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [router]);
 
   const displayName = session?.user?.name || spotify?.display_name || 'Unnamed User';
   const birthdate   = session?.user?.birthdate ?? null;

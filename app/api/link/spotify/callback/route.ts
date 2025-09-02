@@ -25,7 +25,6 @@ export async function GET(req: Request) {
   const cookieState = c.get("sp_link_state")?.value;
   const targetUserId = c.get("sp_link_user")?.value;
 
-  // clear cookies either way
   c.delete("sp_link_state");
   c.delete("sp_link_user");
 
@@ -33,14 +32,12 @@ export async function GET(req: Request) {
     return NextResponse.redirect(new URL(`/my-profile?linkErr=state_mismatch`, appBase));
   }
 
-  // You must be logged in as the user you want to link *to*
   const session = await getServerSession(authOptions);
   const currentUserId = session?.user?.id;
   if (!currentUserId || currentUserId !== targetUserId) {
     return NextResponse.redirect(new URL(`/my-profile?linkErr=session_changed`, appBase));
   }
 
-  // Exchange code for tokens
   const tokenRes = await fetch("https://accounts.spotify.com/api/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -63,7 +60,6 @@ export async function GET(req: Request) {
   const refresh_token = tokenJson.refresh_token as string | undefined;
   const expires_in = Number(tokenJson.expires_in ?? 3600);
 
-  // Get Spotify profile to identify providerAccountId
   const meRes = await fetch("https://api.spotify.com/v1/me", {
     headers: { Authorization: `Bearer ${access_token}` },
   });
@@ -76,34 +72,23 @@ export async function GET(req: Request) {
 
   const provider = "spotify";
   const providerAccountId = String(me.id);
-  const scope = "user-read-email";
+  const scope = "user-read-email user-follow-read";
 
-  // Merge/link in a transaction
   await prisma.$transaction(async (tx) => {
     const existing = await tx.account.findUnique({
       where: { provider_providerAccountId: { provider, providerAccountId } },
-      select: { id: true, userId: true, refresh_token: true },
+      select: { id: true, userId: true },
     });
 
-    // If the Spotify account belongs to a *different* user, merge them into currentUserId
     if (existing && existing.userId !== currentUserId) {
       const oldUserId = existing.userId;
-
-      // move domain data
       await tx.ticket.updateMany({ where: { ownerId: oldUserId }, data: { ownerId: currentUserId } });
       await tx.event.updateMany({ where: { hostId: oldUserId }, data: { hostId: currentUserId } });
-
-      // reassign *all* their OAuth accounts to current
       await tx.account.updateMany({ where: { userId: oldUserId }, data: { userId: currentUserId } });
-
-      // kill sessions for old user
       await tx.session.deleteMany({ where: { userId: oldUserId } });
-
-      // (optional) delete old user row — or keep it if you need audit trail
       await tx.user.delete({ where: { id: oldUserId } }).catch(() => {});
     }
 
-    // Upsert this Spotify account for the current user
     const expires_at = Math.floor(Date.now() / 1000) + expires_in;
     await tx.account.upsert({
       where: { provider_providerAccountId: { provider, providerAccountId } },
@@ -121,7 +106,6 @@ export async function GET(req: Request) {
       update: {
         userId: currentUserId,
         access_token,
-        // keep old refresh token if Spotify didn't return a new one
         refresh_token: refresh_token ?? undefined,
         token_type: "Bearer",
         scope,
@@ -129,14 +113,9 @@ export async function GET(req: Request) {
       },
     });
 
-    // Optional: enrich current user if fields are empty
     const spImage: string | undefined = me?.images?.[0]?.url;
     const spName: string | undefined = me?.display_name || undefined;
-
-    const current = await tx.user.findUnique({
-      where: { id: currentUserId },
-      select: { image: true, name: true },
-    });
+    const current = await tx.user.findUnique({ where: { id: currentUserId }, select: { image: true, name: true } });
 
     const updates: any = {};
     if (!current?.image && spImage) updates.image = spImage;
@@ -146,6 +125,5 @@ export async function GET(req: Request) {
     }
   });
 
-  // Back to profile
   return NextResponse.redirect(new URL("/my-profile?linked=1", appBase));
 }

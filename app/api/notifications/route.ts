@@ -1,4 +1,3 @@
-// app/api/notifications/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
@@ -6,27 +5,36 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = session?.user?.id;
+  if (!userId) return NextResponse.json({ items: [] });
+
+  const hasSpotify = Array.isArray((session.user as any)?.oauthProviders) &&
+                     (session.user as any).oauthProviders.includes("spotify");
+  if (!hasSpotify) return NextResponse.json({ items: [] });
 
   const { searchParams } = new URL(req.url);
-  const markRead = (searchParams.get("markRead") ?? "0") === "1";
-  const limit = Math.min(50, Math.max(1, Number(searchParams.get("limit") || 20)));
-
-  const items = await prisma.notification.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    include: {
-      event: { select: { id: true, title: true } },
-    },
-  });
+  const markRead = searchParams.get("markRead") === "1";
 
   if (markRead) {
     await prisma.notification.updateMany({
-      where: { userId: session.user.id, readAt: null },
+      where: { userId, readAt: null },
       data: { readAt: new Date() },
     });
   }
 
-  return NextResponse.json({ items });
+  const items = await prisma.notification.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    take: 30,
+    select: { id: true, message: true, eventId: true, createdAt: true, readAt: true },
+  });
+
+  // shape createdAt to string for the client
+  const shaped = items.map(n => ({
+    ...n,
+    createdAt: n.createdAt.toISOString(),
+    readAt: n.readAt ? n.readAt.toISOString() : null,
+  }));
+
+  return NextResponse.json({ items: shaped });
 }

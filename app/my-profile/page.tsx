@@ -6,39 +6,46 @@ import Navbar from '@/components/Navbar';
 import ProfilePage from '@/components/profile/ProfilePage';
 import TicketsSection from '@/components/my-profile/TicketsSection';
 import MyProfilePageCard from '@/components/my-profile/MyProfilePageCard';
+import { prisma } from '@/lib/prisma';
 
-export const dynamic = 'force-dynamic'; // keeps this request-scoped (avoids early static eval)
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function MyProfilePage() {
-  // ✅ Server-side session fetch (safe)
+  // Server-side session
   const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    // Server-side redirect
-    // Import redirect from next/navigation at the top of the file:
-    // import { redirect } from 'next/navigation';
+  const userId = (session as any)?.user?.id as string | undefined;
+  if (!userId) {
     redirect('/');
   }
 
-  // ✅ Server-side Spotify fetch (no client-side promises in render)
+  // Hard check the user still exists (handles "deleted user but old JWT" case)
+  const exists = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+  if (!exists) {
+    redirect('/');
+  }
+
+  // Server-side Spotify fetch (best-effort)
   let spotify: Awaited<ReturnType<typeof getSpotifyProfile>> | null = null;
   const accessToken =
-    (session as any)?.accessToken ||
-    (session as any)?.spotify?.accessToken;
-
+    (session as any)?.accessToken || (session as any)?.spotify?.accessToken;
   if (accessToken) {
     try {
       spotify = await getSpotifyProfile(accessToken);
     } catch {
-      // ignore — ProfileCard will still render with session data
+      // ignore
     }
   }
 
   return (
     <main className="bg-sky-50 h-svh flex flex-col overflow-x-hidden">
-      <Navbar/>
-
+      <Navbar />
       <MyProfilePageCard
-        left={<ProfilePage session={session} spotify={spotify} />}
+        left={<ProfilePage session={session as any} spotify={spotify} />}
         right={<TicketsSection />}
       />
     </main>

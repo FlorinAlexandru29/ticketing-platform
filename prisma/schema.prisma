@@ -183,7 +183,7 @@ model Credential {
 model HostProfile {
   id     String @id @default(cuid())
   userId String @unique
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   displayName  String
   website      String?
@@ -219,7 +219,7 @@ model Event {
   venue   Venue?  @relation(fields: [venueId], references: [id])
 
   hostId String
-  host   User   @relation("HostEvents", fields: [hostId], references: [id])
+  host   User   @relation("HostEvents", fields: [hostId], references: [id], onDelete: Cascade)
 
   // keep your existing relation
   tickets Ticket[]
