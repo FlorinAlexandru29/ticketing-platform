@@ -141,7 +141,7 @@ export default function NavbarShell({ session, role }: Props) {
             <button className="btn btn-neutral btn-outline dark:btn-ghost btn-sm hidden sm:block" onClick={() => signOut()}>Logout</button>
           </>
         ) : (
-          <Link href="/login" className="btn btn-neutral btn-outline dark:btn-ghost btn-sm hidden sm:block">Login</Link>
+          <Link href="/login" className="btn btn-neutral btn-outline dark:btn-ghost btn-wide hidden sm:flex">Login</Link>
         )}
       </div>
 
