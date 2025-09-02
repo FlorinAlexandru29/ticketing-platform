@@ -4,8 +4,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 
 // client components
-const EventRow = dynamic(() => import('@/components/Event/EventRow'), { ssr: false });
-const RecommendedRow = dynamic(() => import('@/components/Event/RecommendedRow'), { ssr: false });
+const EventRow = dynamic(() => import('@/components/Event/EventRow'), { ssr: !true });
+const RecommendedRow = dynamic(() => import('@/components/Event/RecommendedRow'), { ssr: !true });
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
