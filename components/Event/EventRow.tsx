@@ -62,7 +62,7 @@ export default function EventRow({
   }, [type]);
 
   return (
-    <section className="mb-5">
+    <section className="mb-5 max-w-full">
       <div className="flex items-baseline justify-between mb-3">
         <h2 className="text-xl font-bold">{heading}</h2>
         {loading ? (

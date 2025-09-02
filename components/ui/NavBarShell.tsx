@@ -86,19 +86,20 @@ export default function NavbarShell({ session, role }: Props) {
       <div className="flex-none ml-4 flex items-center gap-2">
         {isAuthed && hasSpotify && (
           <div className="dropdown dropdown-end">
+            <div className="indicator">
             <button
               className="btn dark:btn-ghost btn-neutral btn-outline btn-circle"
               onClick={toggleNotifDropdown}
               aria-label="Notifications"
             >
-              <div className="indicator">
+              
                 <FontAwesomeIcon icon={faBell} />
                 {notifCount > 0 && (
-                  <span className="badge badge-error badge-sm indicator-item">{notifCount}</span>
+                  <span className="badge badge-error badge-sm indicator-item top-1 right-1">{notifCount}</span>
                 )}
-              </div>
+              
             </button>
-
+            </div>
             <ul tabIndex={0} className="dropdown-content menu w-80 rounded-box text-neutral dark:text-primary-content dark:bg-base-100 shadow-lg p-2 top-12 -right-10!">
               {!notifs && (
                 <li className="disabled">

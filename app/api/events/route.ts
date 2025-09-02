@@ -7,8 +7,8 @@ import { authOptions } from "@/lib/auth-options";
 import { createClient } from "@supabase/supabase-js";
 import { sendNewEventEmail } from "@/lib/mailer";
 
-export const runtime = "nodejs";        // ensure Node for Prisma/email/Supabase
-export const dynamic = "force-dynamic";  // avoid accidental edge/static
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const supabase =
   process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -81,6 +81,106 @@ async function uploadPosterFromDataUrl(dataUrl: string, eventId: string) {
   return data.publicUrl;
 }
 
+async function notifyAndEmail(eventId: string) {
+  const ev = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: {
+      id: true,
+      title: true,
+      startAt: true,
+      venueName: true,
+      city: true,
+      lineup: { select: { artist: { select: { spotifyId: true, name: true } } } },
+    },
+  });
+  if (!ev) {
+    console.warn("[create-event] event not found for notifications", { eventId });
+    return;
+  }
+
+  const lineupIds = ev.lineup.map(l => l.artist.spotifyId).filter((s): s is string => !!s);
+  const topNames = ev.lineup.map(l => l.artist.name).filter(Boolean).slice(0, 3);
+
+  const namesText =
+    topNames.length === 1
+      ? topNames[0]!
+      : topNames.length === 2
+      ? `${topNames[0]} & ${topNames[1]}`
+      : `${topNames[0]}, ${topNames[1]} & ${topNames[2]}${ev.lineup.length > 3 ? "…" : ""}`;
+
+  const targets = lineupIds.length
+    ? await prisma.user.findMany({
+        where: { city: ev.city, followedSpotifyIds: { hasSome: lineupIds } },
+        select: { id: true, email: true },
+      })
+    : [];
+
+  console.log("[create-event] notify targets", {
+    eventId,
+    city: ev.city,
+    lineupCount: ev.lineup.length,
+    lineupIdsCount: lineupIds.length,
+    targetsCount: targets.length,
+  });
+
+  if (!targets.length) return;
+
+  const dateText = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(ev.startAt);
+  const notifMsg = `${namesText} ${ev.lineup.length > 1 ? "are" : "is"} playing in your city on ${dateText}. Tap to view.`;
+
+  // In-app notifications
+  await prisma.notification.createMany({
+    data: targets.map(u => ({
+      userId: u.id,
+      eventId: ev.id,
+      message: notifMsg,
+    })),
+    skipDuplicates: true,
+  });
+
+  // Emails
+  const base =
+    process.env.NEXTAUTH_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  const link = `${base}/events/${ev.id}`;
+
+  const emailTargets = targets.filter(t => !!t.email) as { id: string; email: string }[];
+
+  if (emailTargets.length) {
+    const results = await Promise.allSettled(
+      emailTargets.map(u =>
+        sendNewEventEmail({
+          to: u.email!,
+          title: ev.title,
+          dateText,
+          venueName: ev.venueName,
+          city: ev.city,
+          link,
+        })
+      )
+    );
+
+    const failures = results
+      .map((r, i) => ({ r, i, email: emailTargets[i].email }))
+      .filter((x) => x.r.status === "rejected") as Array<{
+      r: PromiseRejectedResult;
+      i: number;
+      email: string;
+    }>;
+
+    if (failures.length) {
+      console.error(
+        "[create-event] email failures",
+        failures.map(f => ({ email: f.email, reason: String(f.r.reason) }))
+      );
+    } else {
+      console.log("[create-event] emails sent", { count: emailTargets.length });
+    }
+  } else {
+    console.log("[create-event] no email-capable targets");
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -93,10 +193,7 @@ export async function POST(req: Request) {
     const startAt = new Date(input.startAt);
     const endAt = input.endAt ? new Date(input.endAt) : null;
     if (endAt && endAt < startAt) {
-      return NextResponse.json(
-        { error: "End date cannot be before start date." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "End date cannot be before start date." }, { status: 400 });
     }
 
     const normalized = normalizeTitle(input.title);
@@ -183,82 +280,13 @@ export async function POST(req: Request) {
       return event.id;
     });
 
-    // Async notifications + email (best-effort)
-    (async () => {
-      try {
-        const ev = await prisma.event.findUnique({
-          where: { id: eventId },
-          select: {
-            id: true,
-            title: true,
-            startAt: true,
-            venueName: true,
-            city: true,
-            lineup: { select: { artist: { select: { spotifyId: true, name: true } } } },
-          },
-        });
-        if (!ev) return;
-
-        const lineupIds = ev.lineup.map((l) => l.artist.spotifyId).filter(Boolean) as string[];
-        const topNames = ev.lineup.map((l) => l.artist.name).filter(Boolean).slice(0, 3);
-        const namesText =
-          topNames.length === 1
-            ? topNames[0]
-            : topNames.length === 2
-            ? `${topNames[0]} & ${topNames[1]}`
-            : `${topNames[0]}, ${topNames[1]} & ${topNames[2]}${ev.lineup.length > 3 ? "…" : ""}`;
-
-        // Only Spotify-linked users in same city who follow any lineup artist
-        const targets = lineupIds.length
-          ? await prisma.user.findMany({
-              where: {
-                city: ev.city,
-                followedSpotifyIds: { hasSome: lineupIds },
-                accounts: { some: { provider: "spotify" } },
-              },
-              select: { id: true, email: true },
-            })
-          : [];
-
-        if (!targets.length) return;
-
-        const dateText = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-          ev.startAt
-        );
-        const notifMsg = `${namesText} ${ev.lineup.length > 1 ? "are" : "is"} playing in your city on ${dateText}. Tap to view.`;
-
-        await prisma.notification.createMany({
-          data: targets.map((u) => ({
-            userId: u.id,
-            eventId: ev.id,
-            message: notifMsg,
-          })),
-          skipDuplicates: true,
-        });
-
-        const base =
-          process.env.NEXTAUTH_URL ||
-          (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
-        const link = `${base}/events/${ev.id}`;
-
-        await Promise.allSettled(
-          targets
-            .filter((u) => !!u.email)
-            .map((u) =>
-              sendNewEventEmail({
-                to: u.email as string,
-                title: ev.title,
-                dateText,
-                venueName: ev.venueName,
-                city: ev.city,
-                link,
-              })
-            )
-        );
-      } catch (e) {
-        console.error("notify error", e);
-      }
-    })();
+    // Do notifications + email inline for compatibility with older Next versions.
+    // Failures here won't break creation; they’re logged.
+    try {
+      await notifyAndEmail(eventId);
+    } catch (e) {
+      console.error("[create-event] notify/email failed", e);
+    }
 
     return NextResponse.json({ id: eventId });
   } catch (err: any) {
@@ -267,10 +295,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: err.flatten() }, { status: 400 });
     }
     if (String(err?.message || "").includes("Unique constraint failed")) {
-      return NextResponse.json(
-        { error: "An event with the same title/date/venue already exists." },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: "An event with the same title/date/venue already exists." }, { status: 409 });
     }
     return NextResponse.json({ error: "Failed to create event" }, { status: 500 });
   }

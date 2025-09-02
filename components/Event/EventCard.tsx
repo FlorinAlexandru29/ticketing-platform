@@ -22,7 +22,7 @@ export default function EventCard({ ev }: { ev: EventLite }) {
   return (
     <Link
       href={`/events/${ev.id}`}
-      className="group w-56 min-w-30 rounded-box overflow-hidden border border-base-200 bg-base-100 hover:bg-base-200 transition-colors duration-200"
+      className="group w-56 shrink-0 min-w-30 rounded-box overflow-hidden border border-base-200 bg-base-100 hover:bg-base-200 transition-colors duration-200"
     >
       <div className="relative h-40 w-full overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}

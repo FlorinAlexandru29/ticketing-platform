@@ -15,7 +15,7 @@ export default async function HomePage() {
   return (
     <main className="min-h-dvh h-dvh flex flex-col bg-base-300 overflow-hidden">
       <Navbar />
-      <section className="px-6 sm:px-8 md:px-12 pt-8 flex-grow overflow-y-auto flex flex-col items-start">
+      <section className="pl-6 sm:pl-8 md:pl-12 pr-0 pt-8 flex-grow overflow-y-auto max-w-dvw flex flex-col items-start">
         <h1 className="text-3xl font-bold mb-1">Welcome to StageList</h1>
         <p className="opacity-70 mb-8">Discover live shows from your favorite artists.</p>
 

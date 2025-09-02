@@ -25,7 +25,7 @@ export default function RecommendedRow({ hasSpotify }: { hasSpotify: boolean }) 
   if (items.length === 0) return null;
 
   return (
-    <section className="mb-10">
+    <section className="mb-10 max-w-full">
       <h2 className="text-xl font-bold mb-3">Recommended for you</h2>
       <div className="flex gap-4 overflow-x-auto pb-2">
         {items.map(ev => <EventCard key={ev.id} ev={ev} />)}
