@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faLink, faLinkSlash } from '@fortawesome/free-solid-svg-icons';
+import { faLink, faLinkSlash, faArrowsRotate } from '@fortawesome/free-solid-svg-icons';
 import { faSpotify } from '@fortawesome/free-brands-svg-icons';
 
 type Props = {
@@ -19,9 +19,15 @@ export default function SpotifySection({ hasSpotify, unlinkAllowed, onUpdated }:
   const [spLoading, setSpLoading] = useState(false);
   const [spProfileUrl, setSpProfileUrl] = useState<string | null>(null);
 
+  // Unlink modal state
   const [unlinkOpen, setUnlinkOpen] = useState(false);
   const [unlinkLoading, setUnlinkLoading] = useState(false);
   const [unlinkError, setUnlinkError] = useState<string | null>(null);
+
+  // Manual sync state
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [syncErr, setSyncErr] = useState<string | null>(null);
 
   // Lazy fetch of Spotify profile URL (only while linked)
   useEffect(() => {
@@ -42,7 +48,6 @@ export default function SpotifySection({ hasSpotify, unlinkAllowed, onUpdated }:
             }
             return;
           }
-          // Other errors: ignore silently to avoid noisy logs
           return;
         }
 
@@ -58,9 +63,39 @@ export default function SpotifySection({ hasSpotify, unlinkAllowed, onUpdated }:
     };
   }, [linked, spProfileUrl]);
 
+  async function handleSync() {
+    setSyncLoading(true);
+    setSyncMsg(null);
+    setSyncErr(null);
+    try {
+      const r = await fetch('/api/spotify/sync-followed', { method: 'POST' });
+      const ct = r.headers.get('content-type') || '';
+      const payload = ct.includes('application/json') ? await r.json().catch(() => ({})) : {};
+
+      if (!r.ok) {
+        const msg =
+          typeof payload?.error === 'string'
+            ? payload.error
+            : r.status === 400
+            ? 'Spotify not linked or token unavailable'
+            : `Sync failed (HTTP ${r.status})`;
+        setSyncErr(msg);
+        return;
+      }
+
+      const count = Number(payload?.count ?? 0);
+      setSyncMsg(`Synced ${count} followed artist${count === 1 ? '' : 's'}.`);
+      onUpdated?.(); // refresh profile/any dependent UI
+    } catch (e: any) {
+      setSyncErr(e?.message || 'Network error during sync');
+    } finally {
+      setSyncLoading(false);
+    }
+  }
+
   return (
     <div className="w-3/4 flex flex-col">
-      <div className={`flex items-center ${!linked ? 'justify-center' : 'gap-6 justify-between sm:justify-center'}`}>
+      <div className={`flex items-center ${!linked ? 'justify-center' : 'gap-4 flex-wrap justify-between sm:justify-center'}`}>
         {!linked ? (
           <button
             type="button"
@@ -71,7 +106,7 @@ export default function SpotifySection({ hasSpotify, unlinkAllowed, onUpdated }:
           >
             <FontAwesomeIcon className="mr-2" icon={faLink} />
             Link Spotify
-            <FontAwesomeIcon icon={faSpotify} />
+            <FontAwesomeIcon className="ml-2" icon={faSpotify} />
           </button>
         ) : (
           <>
@@ -90,10 +125,27 @@ export default function SpotifySection({ hasSpotify, unlinkAllowed, onUpdated }:
               ) : (
                 <>
                   Open Spotify Profile
-                  <FontAwesomeIcon icon={faSpotify} />
+                  <FontAwesomeIcon className="ml-2" icon={faSpotify} />
                 </>
               )}
             </a>
+
+            <button
+              type="button"
+              className="btn btn-outline btn-success"
+              onClick={handleSync}
+              disabled={syncLoading}
+              title="Sync followed artists from Spotify"
+            >
+              {syncLoading ? (
+                <span className="loading loading-spinner" />
+              ) : (
+                <>
+                  <FontAwesomeIcon className="mr-2" icon={faArrowsRotate} />
+                  Sync followed artists
+                </>
+              )}
+            </button>
 
             {unlinkAllowed && (
               <div className="tooltip join-item" data-tip="Unlink Spotify">
@@ -137,7 +189,6 @@ export default function SpotifySection({ hasSpotify, unlinkAllowed, onUpdated }:
                         const j = await r.json().catch(() => ({}));
                         if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
 
-                        // Immediately reflect unlink in local UI to stop further fetches
                         setLinked(false);
                         setSpProfileUrl(null);
                         setUnlinkOpen(false);
@@ -163,6 +214,13 @@ export default function SpotifySection({ hasSpotify, unlinkAllowed, onUpdated }:
           </>
         )}
       </div>
+
+      {/* Sync feedback */}
+      {(syncMsg || syncErr) && (
+        <div className={`alert mt-3 ${syncErr ? 'alert-error' : 'alert-success'}`}>
+          <span>{syncErr || syncMsg}</span>
+        </div>
+      )}
     </div>
   );
 }

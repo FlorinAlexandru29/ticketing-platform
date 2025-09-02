@@ -137,6 +137,62 @@ async function mergeUsersOnLinkedAccount(params: {
   });
 }
 
+async function syncUserFollowedArtistsFromAccessToken(userId: string, accessToken: string) {
+  // pull all followed artists
+  const ids: string[] = [];
+  const payload: { id: string; name: string; image?: string; genres?: string[] }[] = [];
+
+  let after: string | undefined;
+  while (true) {
+    const u = new URL("https://api.spotify.com/v1/me/following");
+    u.searchParams.set("type", "artist");
+    u.searchParams.set("limit", "50");
+    if (after) u.searchParams.set("after", after);
+
+    const res = await fetch(u, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) break;
+
+    const j: any = await res.json();
+    const items = j?.artists?.items ?? [];
+    for (const a of items) {
+      if (!a?.id) continue;
+      ids.push(a.id);
+      payload.push({
+        id: a.id,
+        name: a.name,
+        image: a.images?.[0]?.url,
+        genres: Array.isArray(a.genres) ? a.genres : [],
+      });
+    }
+
+    after = j?.artists?.cursors?.after || undefined;
+    if (!after) break;
+  }
+
+  const uniqueIds = Array.from(new Set(ids));
+
+  // upsert artists in small batches (no long interactive txn)
+  const BATCH = 35;
+  for (let i = 0; i < payload.length; i += BATCH) {
+    const slice = payload.slice(i, i + BATCH);
+    await prisma.$transaction(
+      slice.map((a) =>
+        prisma.artist.upsert({
+          where: { spotifyId: a.id },
+          update: { name: a.name, image: a.image, genres: a.genres ?? [] },
+          create: { spotifyId: a.id, name: a.name, image: a.image, genres: a.genres ?? [] },
+        })
+      )
+    );
+  }
+
+  // save followed IDs on the user
+  await prisma.user.update({
+    where: { id: userId },
+    data: { followedSpotifyIds: uniqueIds },
+  });
+}
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
@@ -203,16 +259,16 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       // Merge Spotify if linking and it exists on another user
       if (account?.provider === "spotify" && account?.providerAccountId && user?.id) {
-        try {
-          await mergeUsersOnLinkedAccount({
-            targetUserId: user.id,
-            provider: account.provider,
-            providerAccountId: String(account.providerAccountId),
-          });
-        } catch (e) {
-          console.error("Merge on link failed:", e);
-        }
+      try {
+        await mergeUsersOnLinkedAccount({
+          targetUserId: user.id,
+          provider: account.provider,
+          providerAccountId: String(account.providerAccountId),
+        });
+      } catch (e) {
+        console.error("Merge on link failed:", e);
       }
+    }
 
       // Best-effort birthday import on first OAuth sign-in
       if (account && user?.id) {
@@ -222,8 +278,24 @@ export const authOptions: NextAuthOptions = {
           userId: user.id,
         }).catch(() => {});
       }
+
+      if (account?.provider === "spotify" && user?.id) {
+      const at = (account as any).access_token as string | undefined;
+      if (at) {
+        try {
+          await syncUserFollowedArtistsFromAccessToken(user.id, at);
+        } catch (e) {
+          // best-effort; don't block login
+          console.error("Followed-artist sync on sign-in failed:", e);
+        }
+      }
+    }
+
+    
       return true;
     },
+
+    
 
     async redirect({ url, baseUrl }) {
       const u = new URL(url, baseUrl);
