@@ -61,7 +61,7 @@ export default function EventDetails({ event }: { event: EventPayload }) {
     <>
       {/* Poster + Header row */}
       <div className="flex gap-4 w-full flex-col md:flex-row">
-        <div className="rounded-box border border-base-300 min-h-full max-h-130 bg-base-200 min-w-86">
+        <div className="rounded-box border border-base-300 min-h-full max-h-130 bg-base-200 max-w-none min-w-none sm:min-w-86 sm:max-w-none">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={event.posterUrl ?? "/placeholder.jpg"}
