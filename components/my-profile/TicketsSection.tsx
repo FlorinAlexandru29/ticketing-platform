@@ -53,8 +53,8 @@ export default function TicketsSection() {
 
   if (loading) {
     return (
-      <section id="tickets" className="rounded-2xl border shadow-sm p-5">
-        <h3 className="text-base font-semibold">Tickets</h3>
+      <section id="tickets" className="rounded-2xl p-5 overflow-y-auto min-h-full">
+        <h3 className="text-base justify-self-center font-semibold">Tickets</h3>
         <div className="mt-2">
           <span className="loading loading-dots" />
         </div>
@@ -64,8 +64,8 @@ export default function TicketsSection() {
 
   if (err) {
     return (
-      <section id="tickets" className="rounded-2xl border shadow-sm p-5">
-        <h3 className="text-base font-semibold">Tickets</h3>
+      <section id="tickets" className="rounded-2xl p-5 overflow-y-auto min-h-full">
+        <h3 className="text-base justify-self-center font-semibold">Tickets</h3>
         <p className="mt-2 text-sm text-error">{err}</p>
       </section>
     );
@@ -73,16 +73,16 @@ export default function TicketsSection() {
 
   if (groups.length === 0) {
     return (
-      <section id="tickets" className="rounded-2xl border shadow-sm p-5">
-        <h3 className="text-base font-semibold">Tickets</h3>
+      <section id="tickets" className="rounded-2xl p-5 overflow-y-auto min-h-full">
+        <h3 className="text-base justify-self-center font-semibold">Tickets</h3>
         <p className="mt-2 text-sm opacity-80">You don’t have any tickets yet.</p>
       </section>
     );
   }
 
   return (
-    <section id="tickets" className="rounded-2xl border shadow-sm p-5">
-      <h3 className="text-base font-semibold mb-3">Tickets</h3>
+    <section id="tickets" className="rounded-2xl p-5 overflow-y-auto min-h-full">
+      <h3 className="text-base justify-self-center font-semibold mb-3">Tickets</h3>
 
       <div className="space-y-3">
         {groups.map((g) => {

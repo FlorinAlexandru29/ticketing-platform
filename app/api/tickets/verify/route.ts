@@ -19,24 +19,28 @@ export async function POST(req: Request) {
 
   const { eventId, code } = Body.parse(await req.json());
 
-  // Make sure the caller owns this event (or is admin)
+  // Ensure caller is the host for this event (or admin)
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     select: { id: true, hostId: true },
   });
   if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
+
   const isAdmin = (session as any)?.user?.role === "ADMIN";
   if (event.hostId !== userId && !isAdmin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Support scanning either ticket.code or the ticket.id itself
+  // Allow scanning either ticket.code or ticket.id
   const ticket = await prisma.ticket.findFirst({
-    where: { OR: [{ code }, { id: code }] },
+    where: {
+      OR: [{ code: code.trim() }, { id: code.trim() }],
+    },
     select: {
       id: true,
       eventId: true,
       validatedAt: true,
+      tier: { select: { category: true } }, // ⬅️ pull category
     },
   });
 
@@ -56,7 +60,11 @@ export async function POST(req: Request) {
 
   if (ticket.validatedAt) {
     return NextResponse.json(
-      { status: "already", message: "Ticket was already validated." },
+      {
+        status: "already",
+        message: "Ticket was already validated.",
+        category: ticket.tier?.category ?? null, // ⬅️ include for display at door
+      },
       { status: 200 }
     );
   }
@@ -67,7 +75,11 @@ export async function POST(req: Request) {
   });
 
   return NextResponse.json(
-    { status: "validated", message: "Ticket was validated." },
+    {
+      status: "validated",
+      message: "Ticket was validated.",
+      category: ticket.tier?.category ?? null, // ⬅️ include for display at door
+    },
     { status: 200 }
   );
 }

@@ -50,7 +50,7 @@ export async function GET(
   doc.moveDown();
 
   // Details
-  doc.fontSize(14).text(`Ticket Type: ${ticket.tier?.category || "-"}`);
+  doc.fontSize(14).text(`Ticket Type: ${ticket.tier?.category.toUpperCase() || "-"}`);
   doc.text(
     `Price Paid: ${(ticket.price / 100).toLocaleString(undefined, {
       style: "currency",

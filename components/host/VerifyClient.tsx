@@ -6,9 +6,9 @@ import QRScanner from "@/components/host/QRScanner";
 type EventLite = { id: string; title: string; startAt: string };
 
 type VerifyResult =
-  | { kind: "ok"; message: string }
-  | { kind: "warn"; message: string }
-  | { kind: "error"; message: string }
+  | { kind: "ok"; message: string; category?: string | null }
+  | { kind: "warn"; message: string; category?: string | null }
+  | { kind: "error"; message: string; category?: string | null }
   | null;
 
 export default function VerifyClient() {
@@ -18,9 +18,9 @@ export default function VerifyClient() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<VerifyResult>(null);
 
-  // cool-down to prevent double submissions from continuous camera decoding
+  // Cool-down to prevent continuous reads from camera:
   const lockRef = useRef(false);
-  const cooldownMs = 1200;
+  const cooldownMs = 2500; // ⬅️ ~2–3 seconds
 
   useEffect(() => {
     (async () => {
@@ -52,27 +52,47 @@ export default function VerifyClient() {
         return;
       }
 
-      // server returns { status: "validated" | "already" | "wrong_event" | "not_found", message }
+      // API returns { status, message, category? }
+      const cat: string | null | undefined = j.category;
+
       switch (j.status) {
         case "validated":
-          setResult({ kind: "ok", message: j.message || "Ticket was validated." });
+          setResult({
+            kind: "ok",
+            message: j.message || "Ticket was validated.",
+            category: cat ?? undefined,
+          });
           break;
         case "already":
-          setResult({ kind: "warn", message: j.message || "Ticket was already validated." });
+          setResult({
+            kind: "warn",
+            message: j.message || "Ticket was already validated.",
+            category: cat ?? undefined,
+          });
           break;
         case "wrong_event":
-          setResult({ kind: "error", message: j.message || "Ticket not valid for this event." });
+          setResult({
+            kind: "error",
+            message: j.message || "Ticket not valid for this event.",
+          });
           break;
         case "not_found":
-          setResult({ kind: "error", message: j.message || "Ticket does not exist." });
+          setResult({
+            kind: "error",
+            message: j.message || "Ticket does not exist.",
+          });
           break;
         default:
-          setResult({ kind: "error", message: j.message || "Error reading ticket" });
+          setResult({
+            kind: "error",
+            message: j.message || "Error reading ticket",
+          });
       }
     } catch (e: any) {
       setResult({ kind: "error", message: e?.message || "Error reading ticket" });
     } finally {
       setBusy(false);
+      // Release the camera lock after a short cool-down so the next QR can be scanned
       setTimeout(() => (lockRef.current = false), cooldownMs);
     }
   }
@@ -119,7 +139,10 @@ export default function VerifyClient() {
             <button
               className="btn btn-primary join-item"
               disabled={!eventId || !code || busy}
-              onClick={() => verify(code)}
+              onClick={() => {
+                lockRef.current = true;  // lock manual entry too
+                verify(code);
+              }}
             >
               {busy ? <span className="loading loading-spinner" /> : "Check"}
             </button>
@@ -133,25 +156,33 @@ export default function VerifyClient() {
           <div className="opacity-70">Select an event to enable scanning.</div>
         ) : (
           <QRScanner
-  onCode={(text: string) => {
-    if (lockRef.current || busy) return;
-    lockRef.current = true;
-    verify(String(text));
-  }}
-  onError={(err) => {
-    const message =
-      err instanceof Error ? err.message :
-      typeof err === "string" ? err :
-      "Scanner error";
-    setResult({ kind: "error", message });
-  }}
-/>
+            onCode={(text: string) => {
+              if (lockRef.current || busy) return;
+              lockRef.current = true; // prevent rapid multiple decodes
+              verify(String(text));
+            }}
+            onError={(err) => {
+              const message =
+                err instanceof Error ? err.message :
+                typeof err === "string" ? err :
+                "Scanner error";
+              setResult({ kind: "error", message });
+            }}
+          />
+        )}
+        {lockRef.current && (
+          <div className="mt-2 text-xs opacity-70">
+            Hold on… ready to scan next ticket in ~{Math.round(cooldownMs/1000)}s
+          </div>
         )}
       </div>
 
       {result && (
-        <div className={`alert ${resultClass}`}>
+        <div className={`alert ${resultClass} items-center gap-3`}>
           <span>{result.message}</span>
+          {result.category ? (
+            <span className="badge badge-outline badge-lg">{result.category}</span>
+          ) : null}
         </div>
       )}
     </div>
