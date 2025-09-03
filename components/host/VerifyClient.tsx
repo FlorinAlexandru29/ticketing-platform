@@ -18,9 +18,13 @@ export default function VerifyClient() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<VerifyResult>(null);
 
-  // Cool-down to prevent continuous reads from camera:
+  // Lock that actually re-renders UI
+  const [locked, setLocked] = useState(false);
+
+  // Internal refs for logic/timers
   const lockRef = useRef(false);
-  const cooldownMs = 2500; // ⬅️ ~2–3 seconds
+  const cooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cooldownMs = 2500; // ~2–3 seconds
 
   useEffect(() => {
     (async () => {
@@ -32,7 +36,21 @@ export default function VerifyClient() {
         // ignore
       }
     })();
+
+    return () => {
+      if (cooldownRef.current) clearTimeout(cooldownRef.current);
+    };
   }, []);
+
+  function armCooldown() {
+    // clear any previous timer
+    if (cooldownRef.current) clearTimeout(cooldownRef.current);
+    cooldownRef.current = setTimeout(() => {
+      lockRef.current = false;
+      setLocked(false);
+      setResult(null); // hide result after the same cooldown
+    }, cooldownMs);
+  }
 
   async function verify(input: string) {
     if (!eventId || !input || busy) return;
@@ -52,7 +70,6 @@ export default function VerifyClient() {
         return;
       }
 
-      // API returns { status, message, category? }
       const cat: string | null | undefined = j.category;
 
       switch (j.status) {
@@ -92,8 +109,7 @@ export default function VerifyClient() {
       setResult({ kind: "error", message: e?.message || "Error reading ticket" });
     } finally {
       setBusy(false);
-      // Release the camera lock after a short cool-down so the next QR can be scanned
-      setTimeout(() => (lockRef.current = false), cooldownMs);
+      armCooldown(); // release + hide after cooldown
     }
   }
 
@@ -140,7 +156,8 @@ export default function VerifyClient() {
               className="btn btn-primary join-item"
               disabled={!eventId || !code || busy}
               onClick={() => {
-                lockRef.current = true;  // lock manual entry too
+                lockRef.current = true;
+                setLocked(true);     // show banner
                 verify(code);
               }}
             >
@@ -158,7 +175,8 @@ export default function VerifyClient() {
           <QRScanner
             onCode={(text: string) => {
               if (lockRef.current || busy) return;
-              lockRef.current = true; // prevent rapid multiple decodes
+              lockRef.current = true;
+              setLocked(true);       // show banner
               verify(String(text));
             }}
             onError={(err) => {
@@ -167,12 +185,16 @@ export default function VerifyClient() {
                 typeof err === "string" ? err :
                 "Scanner error";
               setResult({ kind: "error", message });
+              // still arm cooldown so UI clears
+              lockRef.current = true;
+              setLocked(true);
+              armCooldown();
             }}
           />
         )}
-        {lockRef.current && (
+        {locked && (
           <div className="mt-2 text-xs opacity-70">
-            Hold on… ready to scan next ticket in ~{Math.round(cooldownMs/1000)}s
+            Hold on… ready to scan next ticket in ~{Math.round(cooldownMs / 1000)}s
           </div>
         )}
       </div>
