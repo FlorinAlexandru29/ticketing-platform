@@ -24,7 +24,7 @@ export default function VerifyClient() {
   // Internal refs for logic/timers
   const lockRef = useRef(false);
   const cooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cooldownMs = 2500; // ~2–3 seconds
+  const cooldownMs = 5000; // ~2–3 seconds
 
   useEffect(() => {
     (async () => {
