@@ -6,7 +6,7 @@ export default function Dock({ dock, setDock }: DockProps) {
 
   return (
     <>
-      <div className="relative dock dock-md sm:hidden">
+      <div className="relative dock dock-md md:hidden">
         <button className={`${dock === 'left' ? 'dock-active' : ''}`} onClick={() => setDock('left')}>
           <FontAwesomeIcon icon={faInfo} />
           <span className="dock-label">Profile</span>
