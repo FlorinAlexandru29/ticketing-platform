@@ -92,7 +92,7 @@ export default function TicketsSection() {
           return (
             <div key={g.event.id} className="collapse collapse-arrow bg-base-100 border border-base-300">
               <input type="checkbox" />
-              <div className="collapse-title flex items-center gap-3">
+              <div className="collapse-title flex items-center gap-3 flex-wrap">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={g.event.posterUrl ?? "/placeholder.jpg"}
