@@ -308,9 +308,7 @@ export default function EventDetails({ event,session }: { event: EventPayload, s
                 (
                   userId && startCheckout
                 )}>
-                  
-                  {buyLoading ? <span className="loading loading-spinner" /> : "Purchase"}
-                  {!userId && "Log in to Purchase"}
+                  {!userId ? "Log in to Purchase" :( buyLoading ? <span className="loading loading-spinner" /> : "Purchase" )}
                 </button>
               </div>
             </div>
