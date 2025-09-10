@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { prisma } from "@/lib/prisma";
 import EventDetails from "./EventDetails";
+import { authOptions } from "@/lib/auth-options";
+import { getServerSession } from 'next-auth';
 
 // v14/v15 params typing (v15 makes params a Promise)
 type PageParams = { id: string };
@@ -19,6 +21,18 @@ export default async function EventPage({ params }: { params: Promise<PageParams
     },
   });
   if (!event) notFound();
+
+  const session = await getServerSession(authOptions);
+    const userId = (session as any)?.user?.id as string | undefined;
+    //if (!userId) {
+    //  redirect('/');
+    //}
+  
+    // Hard check the user still exists (handles "deleted user but old JWT" case)
+    const exists = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
 
   // Build a serializable payload for the client component
   const payload = {
@@ -58,7 +72,7 @@ export default async function EventPage({ params }: { params: Promise<PageParams
       <Navbar />
       <main className="px-6 sm:px-8 md:px-12 py-8 justify-items-center bg-base-300">
         <div className="grid grid-cols-1 w-3/4 md:grid-cols-[auto] gap-6 items-start">
-          <EventDetails event={payload} />
+          <EventDetails event={payload} session={session as any}/>
         </div>
       </main>
     </>

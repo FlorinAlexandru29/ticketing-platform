@@ -33,6 +33,23 @@ type EventPayload = {
   }>;
 };
 
+type Props = {
+  session: {
+    user: {
+      id: string;
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+      birthdate?: string | null;
+      hasCredentials?: boolean;
+      countryCode?: string | null;
+      country?: string | null;
+      city?: string | null;
+      oauthProviders?: string[];
+    };
+  };
+};
+
 function fmtDateRange(startIso: string, endIso: string | null) {
   const start = new Date(startIso);
   const end = endIso ? new Date(endIso) : null;
@@ -40,13 +57,14 @@ function fmtDateRange(startIso: string, endIso: string | null) {
   if (!end || start.toDateString() === end.toDateString()) return fmt.format(start);
   return `${fmt.format(start)} – ${fmt.format(end)}`;
 }
+  
 
 function buildMapsEmbed(venueName: string, address: string, city: string) {
   const q = [venueName, address, city].filter(Boolean).join(", ");
   return `https://www.google.com/maps?output=embed&q=${encodeURIComponent(q)}`;
 }
 
-export default function EventDetails({ event }: { event: EventPayload }) {
+export default function EventDetails({ event,session }: { event: EventPayload, session : Props }) {
   const router = useRouter();
   const search = useSearchParams();
 
@@ -56,6 +74,8 @@ export default function EventDetails({ event }: { event: EventPayload }) {
     event.venueAddress,
     event.city,
   ]);
+
+  const userId = (session as any)?.user?.id as string | undefined;
 
   // Success flow (redirect from Stripe)
   const purchaseSuccess = search.get("p") === "success";
@@ -245,7 +265,7 @@ export default function EventDetails({ event }: { event: EventPayload }) {
                         <button
                           className="btn btn-circle btn-success"
                           onClick={() =>
-                            setQty((prev) => ({ ...prev, [t.id]: Math.min(999, (prev[t.id] || 0) + 1) }))
+                            setQty((prev) => ({ ...prev, [t.id]: Math.min(t.quantity, (prev[t.id] || 0) + 1) }))
                           }
                         >
                           <FontAwesomeIcon icon={faPlus} />
@@ -283,7 +303,12 @@ export default function EventDetails({ event }: { event: EventPayload }) {
               </div>
               <div className="flex items-center gap-3">
                 {buyError && <div className="text-error text-sm">{buyError}</div>}
-                <button className="btn btn-primary" disabled={summary.totalCount === 0 || buyLoading} onClick={startCheckout}>
+                <button className="btn btn-primary" disabled={summary.totalCount === 0 || buyLoading} 
+                onClick={() => 
+                (
+                  userId ? startCheckout : console.log("Log In")
+                )}>
+                  
                   {buyLoading ? <span className="loading loading-spinner" /> : "Purchase"}
                 </button>
               </div>
