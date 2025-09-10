@@ -303,7 +303,7 @@ export default function EventDetails({ event,session }: { event: EventPayload, s
               </div>
               <div className="flex items-center gap-3">
                 {buyError && <div className="text-error text-sm">{buyError}</div>}
-                <button className="btn btn-primary" disabled={summary.totalCount === 0 || buyLoading} 
+                <button className="btn btn-primary" disabled={summary.totalCount === 0 || buyLoading || !userId} 
                 onClick={() => 
                 (
                   userId ? startCheckout : console.log("Log In")
