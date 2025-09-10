@@ -23,16 +23,6 @@ export default async function EventPage({ params }: { params: Promise<PageParams
   if (!event) notFound();
 
   const session = await getServerSession(authOptions);
-    const userId = (session as any)?.user?.id as string | undefined;
-    //if (!userId) {
-    //  redirect('/');
-    //}
-  
-    // Hard check the user still exists (handles "deleted user but old JWT" case)
-    const exists = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true },
-    });
 
   // Build a serializable payload for the client component
   const payload = {
