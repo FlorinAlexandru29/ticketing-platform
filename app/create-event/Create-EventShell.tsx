@@ -990,7 +990,7 @@ export default function CreateEventShell() {
                                 onMouseDown={(e) => e.preventDefault()}
                               >
                                 {a.image ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
+                                  
                                   <img src={a.image} alt="" className="w-8 h-8 rounded" />
                                 ) : (
                                   <div className="w-8 h-8 rounded bg-base-200" />

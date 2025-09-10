@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth-options";
 // client components
 const EventRow = dynamic(() => import('@/components/Event/EventRow'), { ssr: !true });
 const RecommendedRow = dynamic(() => import('@/components/Event/RecommendedRow'), { ssr: !true });
+import EventSearch from '@/components/Event/EventSearch';
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
@@ -16,9 +17,13 @@ export default async function HomePage() {
     <main className="min-h-dvh h-dvh flex flex-col bg-base-300 overflow-hidden">
       <Navbar />
       <section className="pl-6 sm:pl-8 md:pl-12 pr-0 pt-8 flex-grow overflow-y-auto max-w-dvw flex flex-col items-start">
+        <div className='mb-5'>
+          <div>
         <h1 className="text-3xl font-bold mb-1">Welcome to StageList</h1>
         <p className="opacity-70 mb-8">Discover live shows from your favorite artists.</p>
-
+          </div>
+        <EventSearch/>
+        </div>
         <RecommendedRow hasSpotify={hasSpotify} />
         <EventRow heading="Concerts" type="CONCERT" pageSize={10} />
         <EventRow heading="Festivals" type="FESTIVAL" pageSize={10} />

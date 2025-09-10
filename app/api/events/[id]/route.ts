@@ -63,12 +63,12 @@ export async function PATCH(req: Request, { params }: { params: Params }) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      // Update event core fields
+      
       if (Object.keys(data).length) {
         await tx.event.update({ where: { id }, data });
       }
 
-      // Update ticket tiers (only price & quantity; quantity can only go up)
+      // Update ticket tiers
       if (input.data.ticketTiers) {
         const existing = await tx.ticketTier.findMany({
           where: { eventId: id },
@@ -79,7 +79,7 @@ export async function PATCH(req: Request, { params }: { params: Params }) {
           const curQ = map.get(t.id);
           if (curQ == null) continue;
           if (t.quantity < curQ) {
-            // enforce "no lowering quantity" → only apply price
+            
             await tx.ticketTier.update({
               where: { id: t.id },
               data: { priceCents: t.priceCents },

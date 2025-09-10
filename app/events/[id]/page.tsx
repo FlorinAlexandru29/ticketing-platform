@@ -61,7 +61,7 @@ export default async function EventPage({ params }: { params: Promise<PageParams
     <>
       <Navbar />
       <main className="px-6 sm:px-8 md:px-12 py-8 justify-items-center bg-base-300">
-        <div className="grid grid-cols-1 w-full md:w-3/4 md:grid-cols-[auto] gap-6 items-start">
+        <div className="grid grid-cols-1 w-full lg:w-3/4 md:grid-cols-[auto] gap-6 items-start">
           <EventDetails event={payload} session={session as any}/>
         </div>
       </main>

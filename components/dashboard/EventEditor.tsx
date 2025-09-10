@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-type Tier = { id: string; category: string; priceCents: number; quantity: number; };
+type Tier = { id: string; category: string; priceCents: number; quantity: number;};
 type Props = {
   eventId: string;
   initial: {
@@ -14,17 +14,19 @@ type Props = {
     ticketTiers: Tier[];
   };
   canDelete?: boolean;
-  afterSavePath?: string; // e.g. /dashboard/host/events
+  
 };
 
-export default function EventEditor({ eventId, initial, canDelete = false, afterSavePath }: Props) {
+export default function EventEditor({ eventId, initial, canDelete = false}: Props) {
   const [title, setTitle] = useState(initial.title);
   const [startAt, setStartAt] = useState(initial.startAt.slice(0,16)); // datetime-local
   const [endAt, setEndAt] = useState(initial.endAt ? initial.endAt.slice(0,16) : "");
   const [city, setCity] = useState(initial.city);
   const [venueName, setVenueName] = useState(initial.venueName);
   const [tiers, setTiers] = useState<Tier[]>(initial.ticketTiers);
+  const [tiersCopy, setTiersCopy] = useState<Tier[]>(initial.ticketTiers);
   const [busy, setBusy] = useState(false);
+
 
   async function save() {
     setBusy(true);
@@ -38,15 +40,16 @@ export default function EventEditor({ eventId, initial, canDelete = false, after
           endAt: endAt ? new Date(endAt).toISOString() : null,
           city,
           venueName,
-          ticketTiers: tiers.map(t => ({ id: t.id, priceCents: t.priceCents, quantity: t.quantity })),
+          ticketTiers: tiersCopy.map(t => ({ id: t.id, priceCents: t.priceCents, quantity: t.quantity })),
         })
       });
       if (!res.ok) {
         const j = await res.json().catch(()=>null);
         throw new Error(j?.error || "Failed to save");
       }
-      if (afterSavePath) window.location.href = afterSavePath;
-      else alert("Saved!");
+      
+      alert("Saved!");
+      window.location.href ="/dashboard/host/events/"+eventId+"/edit";
     } catch (e:any) {
       alert(e.message || "Save failed");
     } finally {
@@ -63,7 +66,7 @@ export default function EventEditor({ eventId, initial, canDelete = false, after
         const j = await res.json().catch(()=>null);
         throw new Error(j?.error || "Failed to delete");
       }
-      window.location.href = afterSavePath || "/dashboard";
+      window.location.href ="/dashboard";
     } catch (e:any) {
       alert(e.message || "Delete failed");
     } finally {
@@ -103,32 +106,35 @@ export default function EventEditor({ eventId, initial, canDelete = false, after
             <div key={t.id} className="grid grid-cols-[1fr_auto_auto] gap-2 items-end">
               <div>
                 <div className="text-sm opacity-70">{t.category}</div>
-                <div className="text-xs opacity-50">Tier ID: {t.id.slice(0,8)}…</div>
+                <div className="text-sm opacity-70">Quantity : {t.quantity}</div>
+                <div className="text-sm opacity-70">Price : {(t.priceCents/100).toString()}</div>
               </div>
               <label className="form-control">
-                <span className="label-text">Price (RON)</span>
+                <span className="label-text">New Price (RON)</span>
                 <input type="number" className="input input-bordered w-36"
-                  value={(t.priceCents/100).toString()}
-                  onChange={e=>{
+                  onBlur={e=>{
                     const v = Math.max(0, Math.round(Number(e.target.value||0)*100));
-                    setTiers(prev => prev.map((x,i)=> i===idx ? {...x, priceCents:v} : x));
+                    setTiersCopy(prev => prev.map((x,i)=> i===idx ? {...x, priceCents:v} : x));
+                    e.target.value = (v/100).toString();
                   }}
+                  onChange={() => ({})}
                 />
               </label>
               <label className="form-control">
-                <span className="label-text">Quantity</span>
-                <input type="number" className="input input-bordered w-28" min={t.quantity}
-                  value={t.quantity}
-                  onChange={e=>{
+                <span className="label-text">New Quantity</span>
+                <input type="number" className="input w-28"
+                  onBlur={e=>{
                     const v = Math.max(t.quantity, Number(e.target.value||0)); // only allow raise
-                    setTiers(prev => prev.map((x,i)=> i===idx ? {...x, quantity:v} : x));
+                    setTiersCopy(prev => prev.map((x,i)=> i===idx ? {...x, quantity:v} : x));
+                    e.target.value = v.toString();
                   }}
+                  onChange={() => ({})}
                 />
               </label>
             </div>
           ))}
         </div>
-        <p className="text-xs opacity-70 mt-2">Quantity can only be increased (can’t go below current amount).</p>
+        <p className="text-xs opacity-70 mt-2">Quantity can only be increased.</p>
       </section>
 
       <div className="flex gap-2 justify-end">

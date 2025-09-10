@@ -30,11 +30,12 @@ export default async function HostEditEventPage({
       venueName: true,
       hostId: true,
       ticketTiers: {
-        select: { id: true, category: true, priceCents: true, quantity: true },
+        select: { id: true, category: true, priceCents: true, quantity: true},
         orderBy: { priceCents: "asc" },
       },
     },
   });
+  
 
   if (!ev) redirect("/dashboard/host/events");
   if (role === "HOST" && ev.hostId !== userId) redirect("/dashboard/host/events");
@@ -45,7 +46,7 @@ export default async function HostEditEventPage({
       <EventEditor
         eventId={ev.id}
         canDelete={role === "ADMIN" || ev.hostId === userId}
-        afterSavePath="/dashboard/host/events"
+        
         initial={{
           title: ev.title,
           startAt: ev.startAt.toISOString(),
