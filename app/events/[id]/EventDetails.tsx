@@ -306,10 +306,11 @@ export default function EventDetails({ event,session }: { event: EventPayload, s
                 <button className="btn btn-primary" disabled={summary.totalCount === 0 || buyLoading || !userId} 
                 onClick={() => 
                 (
-                  userId ? startCheckout : console.log("Log In")
+                  userId && startCheckout
                 )}>
                   
                   {buyLoading ? <span className="loading loading-spinner" /> : "Purchase"}
+                  {!userId && "Log in to Purchase"}
                 </button>
               </div>
             </div>
