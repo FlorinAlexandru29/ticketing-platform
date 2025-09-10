@@ -43,7 +43,6 @@ export default async function AdminEditEventPage({
       <EventEditor
         eventId={ev.id}
         canDelete
-        afterSavePath="/dashboard/admin/events"
         initial={{
           title: ev.title,
           startAt: ev.startAt.toISOString(),
