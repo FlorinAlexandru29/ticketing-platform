@@ -12,7 +12,6 @@ export async function finalizePurchase(
   sessionId?: string | null,
   paymentId?: string | null
 ) {
-  // Quick check to avoid work
   const existing = await prisma.purchase.findUnique({
     where: { id: purchaseId },
     include: { items: true },

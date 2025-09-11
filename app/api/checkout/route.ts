@@ -80,7 +80,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Tier/event mismatch" }, { status: 400 });
     }
 
-    // Inventory check (soft – final check happens when issuing tickets)
+    // Inventory check 
     for (const it of mergedItems) {
       const tier = tiers.find(t => t.id === it.tierId)!;
       if ((tier.quantity ?? 0) < it.quantity) {
@@ -91,8 +91,8 @@ export async function POST(req: Request) {
       }
     }
 
-    const currency = (tiers[0]?.currency || "RON").toLowerCase(); // Stripe expects lowercase
-    // Ensure all tiers share same currency (simple store rule)
+    const currency = (tiers[0]?.currency || "RON").toLowerCase();
+    // Ensure all tiers share same currency
     if (tiers.some(t => (t.currency || "RON").toLowerCase() !== currency)) {
       return NextResponse.json({ error: "Mixed currencies not supported" }, { status: 400 });
     }

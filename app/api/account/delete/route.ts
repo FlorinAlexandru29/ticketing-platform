@@ -27,7 +27,6 @@ async function handleDelete() {
 
     await prisma.$transaction(async (tx) => {
       // Remove auth surfaces
-      await tx.session.deleteMany({ where: { userId } });
       await tx.account.deleteMany({ where: { userId } });
       await tx.credential.deleteMany({ where: { userId } });
       await tx.emailVerificationCode.deleteMany({ where: { userId } });

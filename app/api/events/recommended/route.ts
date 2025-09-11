@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   const MAX = Math.min(20, Number(url.searchParams.get("limit") || 10));
   const now = new Date();
 
-  // Not logged in → no recommendations
+  // Recommendations are not displayed for users that are not logged in.
   if (!userId) return NextResponse.json({ items: [] });
 
   // Load user's city + followed Spotify IDs
@@ -27,21 +27,18 @@ export async function GET(req: Request) {
   const city = user?.city ?? null;
   const followedIds = user?.followedSpotifyIds ?? [];
 
-  // Hard gating:
+  
   // - Require Spotify-linked follows
-  // - Require user city (we only recommend local events)
+  // - Require user city
   if (!city || followedIds.length === 0) {
     return NextResponse.json({ items: [] });
   }
 
-  // Only events:
-  // - in the same city
-  // - upcoming
-  // - that include at least one followed artist in the lineup
+  
   const events = await prisma.event.findMany({
     where: {
       startAt: { gte: now },
-      city, // strict city match; if you prefer case-insensitive: { equals: city, mode: "insensitive" } (PG only)
+      city,
       lineup: {
         some: {
           artist: {
@@ -51,7 +48,7 @@ export async function GET(req: Request) {
       },
     },
     orderBy: { startAt: "asc" },
-    take: MAX * 3, // grab a bit more; we'll soft-rank below and slice
+    take: MAX * 3, 
     select: {
       id: true,
       title: true,
@@ -65,13 +62,12 @@ export async function GET(req: Request) {
     },
   });
 
-  // Optional: soft-rank by “how many of your followed artists are present” then recency
   const ranked = events
     .map((ev) => {
       const lineupIds = ev.lineup.map((l) => l.artist.spotifyId).filter(Boolean) as string[];
       const matchCount = lineupIds.filter((id) => followedIds.includes(id)).length;
       const daysAway = Math.floor((+ev.startAt - +now) / 86_400_000);
-      // Heavier weight for more matches, tie-breaker on sooner dates
+      // score is based on the more artists are followed and the sooner the event
       const score = matchCount * 100 - daysAway;
       return { ev, score };
     })

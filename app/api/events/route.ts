@@ -280,8 +280,7 @@ export async function POST(req: Request) {
       return event.id;
     });
 
-    // Do notifications + email inline for compatibility with older Next versions.
-    // Failures here won't break creation; they’re logged.
+    // notifications + email inline
     try {
       await notifyAndEmail(eventId);
     } catch (e) {
