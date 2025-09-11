@@ -141,7 +141,7 @@ export async function GET(req: Request) {
 
       // Reassign OAuth accounts and remove old sessions & user row
       await tx.account.updateMany({ where: { userId: oldUserId }, data: { userId: currentUserId } });
-      await tx.session.deleteMany({ where: { userId: oldUserId } });
+      
       await tx.user.delete({ where: { id: oldUserId } }).catch(() => {});
     }
 
