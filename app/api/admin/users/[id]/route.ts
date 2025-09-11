@@ -47,7 +47,7 @@ export async function DELETE(_: Request, { params }: { params: Params }) {
       await tx.emailVerificationCode.deleteMany({ where: { userId: id } });
 
       // End sessions and unlink OAuth accounts (your schema already cascades, but do it explicitly)
-      await tx.session.deleteMany({ where: { userId: id } });
+      
       await tx.account.deleteMany({ where: { userId: id } });
 
       // Finally, delete the user
