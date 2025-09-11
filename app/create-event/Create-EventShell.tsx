@@ -465,7 +465,7 @@ export default function CreateEventShell() {
         The venue and date are included in a smaller font.
         Artist Information ${selectedArtists
           .map((a) => {
-            return `- ${a.name} (${a.genres?.slice(0, 3).join(", ") || ""})`;
+            return `- ${a.name} ${a.albums} (${a.genres?.slice(0, 3).join(", ") || ""})`;
           })
           .join("\n")}
         Venue Information ${selectedVenue.name}, ${countryName || ""} ${
