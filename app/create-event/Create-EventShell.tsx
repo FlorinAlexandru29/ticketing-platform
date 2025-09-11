@@ -463,6 +463,7 @@ export default function CreateEventShell() {
         The event name is a prominent logo with a random effect.
         The artist names are listed clearly.
         The venue and date are included in a smaller font.
+        Include artist releases
         Artist Information ${selectedArtists
           .map((a) => {
             return `- ${a.name} ${a.albums} (${a.genres?.slice(0, 3).join(", ") || ""})`;
