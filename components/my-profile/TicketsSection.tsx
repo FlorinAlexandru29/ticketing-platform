@@ -75,7 +75,6 @@ export default function TicketsSection() {
     return (
       <section id="tickets" className="rounded-2xl p-5 overflow-y-auto min-h-full">
         <h3 className="text-base justify-self-center font-semibold">Tickets</h3>
-        <p className="mt-2 text-sm opacity-80">You don’t have any tickets yet.</p>
       </section>
     );
   }

@@ -103,7 +103,6 @@ model User {
   emailVerificationCode EmailVerificationCode?
 
   accounts Account[]
-  sessions Session[]
 
   tickets   Ticket[]
   events    Event[]    @relation("HostEvents")
@@ -133,15 +132,6 @@ model Account {
   // NOTE: do NOT mark userId as @unique; a user can have many accounts
 
   @@unique([provider, providerAccountId])
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model EmailVerificationCode {
