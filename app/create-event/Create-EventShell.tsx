@@ -968,7 +968,7 @@ export default function CreateEventShell() {
                     </summary>
 
                     {editingArtist && artistQuery.length > 1 && (
-                      <ul className="menu dropdown-content flex-col bg-base-100 rounded-box z-10 w-80 p-2 shadow-sm max-h-72 overflow-auto">
+                      <ul className="menu dropdown-content bg-base-100 rounded-box z-10 w-80 p-2 shadow-sm max-h-72 overflow-auto" style={{ flexFlow: "column" }}>
                         {artistSearchLoading && (
                           <li className="disabled">
                             <a>
