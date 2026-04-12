@@ -10,9 +10,7 @@ export async function GET(req: NextRequest) {
   const token = await getAppToken();
 
   const resp = await fetch(
-    `https://api.spotify.com/v1/artists/${new URLSearchParams({
-      q,
-    })}`,
+    `https://api.spotify.com/v1/artists/${encodeURIComponent(q)}`,
     { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
   );
 
