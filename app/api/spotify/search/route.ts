@@ -32,6 +32,6 @@ export async function GET(req: NextRequest) {
       genres: a.genres ?? [],
       image: a.images?.[0]?.url ?? null,
     })) ?? [];
-  return NextResponse.json;
+    return NextResponse.json({ json });
   //return NextResponse.json({ items });
 }
