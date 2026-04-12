@@ -257,6 +257,7 @@ export default function CreateEventShell() {
       setArtistSearchLoading(true);
       try {
         const res = await fetch(`/api/spotify/search?q=${encodeURIComponent(artistQuery)}`);
+        console.log(`/api/spotify/search?q=${encodeURIComponent(artistQuery)}`);
         const data = await res.json();
         setArtistSuggestions(data.items || []);
       } catch {
