@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   }
 
   const json = await resp.json();
+  console.log('Spotify search response:', json);
   const items =
     (json?.artists?.items ?? []).map((a: any) => ({
       id: a.id,
