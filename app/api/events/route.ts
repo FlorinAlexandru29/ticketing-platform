@@ -18,7 +18,6 @@ const supabase =
 const ArtistSchema = z.object({
   spotifyId: z.string().min(1),
   name: z.string().min(1),
-  genres: z.array(z.string()).optional().default([]),
   image: z.string().url().optional().nullable(),
   slot: z.string().datetime(), // ISO
 });
@@ -243,8 +242,8 @@ export async function POST(req: Request) {
         input.artists.map((a) =>
           tx.artist.upsert({
             where: { spotifyId: a.spotifyId },
-            update: { name: a.name, genres: a.genres || [], image: a.image ?? undefined },
-            create: { spotifyId: a.spotifyId, name: a.name, genres: a.genres || [], image: a.image ?? undefined },
+            update: { name: a.name, image: a.image ?? undefined },
+            create: { spotifyId: a.spotifyId, name: a.name, image: a.image ?? undefined },
             select: { id: true, spotifyId: true, name: true },
           })
         )

@@ -42,7 +42,6 @@ export default async function EventPage({ params }: { params: Promise<PageParams
       artist: {
         name: l.artist.name,
         image: l.artist.image ?? null,
-        genres: (l.artist.genres ?? []) as string[],
       },
       artistId: l.artistId,
     })),

@@ -15,7 +15,7 @@ const appBase =
 /** Pull all followed artists for the current user using the provided access token. */
 async function pullFollowedArtists(accessToken: string) {
   const ids: string[] = [];
-  const artistsPayload: { id: string; name: string; image?: string; genres?: string[] }[] = [];
+  const artistsPayload: { id: string; name: string; image?: string;}[] = [];
 
   let after: string | undefined;
   while (true) {
@@ -36,7 +36,6 @@ async function pullFollowedArtists(accessToken: string) {
         id: a.id,
         name: a.name,
         image: a.images?.[0]?.url,
-        genres: Array.isArray(a.genres) ? a.genres : [],
       });
     }
 
@@ -195,8 +194,8 @@ export async function GET(req: Request) {
           slice.map((a) =>
             prisma.artist.upsert({
               where: { spotifyId: a.id },
-              update: { name: a.name, image: a.image, genres: a.genres ?? [] },
-              create: { spotifyId: a.id, name: a.name, image: a.image, genres: a.genres ?? [] },
+              update: { name: a.name, image: a.image},
+              create: { spotifyId: a.id, name: a.name, image: a.image},
             })
           )
         );

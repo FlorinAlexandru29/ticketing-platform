@@ -20,7 +20,7 @@ type EventPayload = {
   lineup: Array<{
     slot: string;      // ISO
     artistId: string;
-    artist: { name: string; image: string | null; genres: string[] };
+    artist: { name: string; image: string | null;};
   }>;
   ticketTiers: Array<{
     id: string;
@@ -206,9 +206,6 @@ export default function EventDetails({ event,session }: { event: EventPayload, s
                       />
                       <div className="flex-1 min-w-0">
                         <div className="font-medium truncate">{l.artist.name}</div>
-                        <div className="text-xs opacity-70 truncate">
-                          {(l.artist.genres || []).slice(0, 3).join(", ")}
-                        </div>
                       </div>
                       <div className="text-sm opacity-80">
                         {new Intl.DateTimeFormat(undefined, {

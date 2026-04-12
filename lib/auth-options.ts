@@ -140,7 +140,7 @@ async function mergeUsersOnLinkedAccount(params: {
 async function syncUserFollowedArtistsFromAccessToken(userId: string, accessToken: string) {
   // pull all followed artists
   const ids: string[] = [];
-  const payload: { id: string; name: string; image?: string; genres?: string[] }[] = [];
+  const payload: { id: string; name: string; image?: string;}[] = [];
 
   let after: string | undefined;
   while (true) {
@@ -161,7 +161,6 @@ async function syncUserFollowedArtistsFromAccessToken(userId: string, accessToke
         id: a.id,
         name: a.name,
         image: a.images?.[0]?.url,
-        genres: Array.isArray(a.genres) ? a.genres : [],
       });
     }
 
@@ -179,8 +178,8 @@ async function syncUserFollowedArtistsFromAccessToken(userId: string, accessToke
       slice.map((a) =>
         prisma.artist.upsert({
           where: { spotifyId: a.id },
-          update: { name: a.name, image: a.image, genres: a.genres ?? [] },
-          create: { spotifyId: a.id, name: a.name, image: a.image, genres: a.genres ?? [] },
+          update: { name: a.name, image: a.image},
+          create: { spotifyId: a.id, name: a.name, image: a.image},
         })
       )
     );
