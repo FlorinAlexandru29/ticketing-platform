@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     `https://api.spotify.com/v1/search?${new URLSearchParams({
       q,
       type: 'artist',
-      limit: '5',
+      limit: '10',
     })}`,
     { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
   );
