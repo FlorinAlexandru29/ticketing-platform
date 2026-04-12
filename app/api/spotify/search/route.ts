@@ -29,7 +29,6 @@ export async function GET(req: NextRequest) {
     (json?.artists?.items ?? []).map((a: any) => ({
       id: a.id,
       name: a.name,
-      genres: a.genres ?? [],
       image: a.images?.[0]?.url ?? null,
     })) ?? [];
   return NextResponse.json({ items });

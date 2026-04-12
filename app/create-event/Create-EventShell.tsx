@@ -71,7 +71,6 @@ export default function CreateEventShell() {
   type Artist = {
     id: string;
     name: string;
-    genres: string[];
     image?: string | null;
     time?: string;
     albums?: Album[];
@@ -146,13 +145,12 @@ export default function CreateEventShell() {
     try {
       const artistLines = selectedArtists
         .map((a) => {
-          const genres = a.genres?.slice(0, 3).join(", ") || "";
           const albumsStr =
             (a.albums?.length ? a.albums : [])
               .slice(0, 3)
               .map((al) => `"${al.name}" (${(al.release_date || "").slice(0, 4)})`)
               .join(", ") || "—";
-          return `- ${a.name}${genres ? ` — ${genres}` : ""}\n  Notable releases: ${albumsStr}`;
+          return `- ${a.name}\n  Notable releases: ${albumsStr}`;
         })
         .join("\n");
 
@@ -467,7 +465,7 @@ export default function CreateEventShell() {
         Include artist releases
         Artist Information ${selectedArtists
           .map((a) => {
-            return `- ${a.name} ${a.albums} (${a.genres?.slice(0, 3).join(", ") || ""})`;
+            return `- ${a.name} ${a.albums}`;
           })
           .join("\n")}
         Venue Information ${selectedVenue.name}, ${countryName || ""} ${
@@ -575,7 +573,6 @@ export default function CreateEventShell() {
       artists: selectedArtists.map((a) => ({
         spotifyId: a.id,
         name: a.name,
-        genres: a.genres ?? [],
         image: a.image ?? null,
         slot: new Date(a.time as string).toISOString(),
       })),
@@ -1003,9 +1000,6 @@ export default function CreateEventShell() {
                                 )}
                                 <div className="flex-1">
                                   <div className="font-medium">{a.name}</div>
-                                  <div className="text-xs opacity-70 truncate">
-                                    {a.genres?.slice(0, 3).join(", ") || "—"}
-                                  </div>
                                 </div>
                                 <button
                                   className="btn btn-xs btn-success"
@@ -1037,9 +1031,6 @@ export default function CreateEventShell() {
                           )}
                           <div className="min-w-0">
                             <div className="font-medium">{a.name}</div>
-                            <div className="text-xs opacity-70 truncate">
-                              {a.genres?.slice(0, 3).join(", ") || "—"}
-                            </div>
                           </div>
                         </div>
                         <div className="tooltip tooltip-left" data-tip="Start Time">

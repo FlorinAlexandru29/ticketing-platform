@@ -131,7 +131,7 @@ export async function POST() {
   }
 
   // Collect followed artists (paginated)
-  const map = new Map<string, { id: string; name: string; image?: string; genres?: string[] }>();
+  const map = new Map<string, { id: string; name: string; image?: string;}>();
 
   async function fetchPage(after?: string) {
     const u = new URL("https://api.spotify.com/v1/me/following");
@@ -184,7 +184,6 @@ export async function POST() {
         id: a.id,
         name: a.name,
         image: a.images?.[0]?.url,
-        genres: Array.isArray(a.genres) ? a.genres : [],
       });
     }
 
@@ -206,8 +205,8 @@ export async function POST() {
       slice.map((a) =>
         prisma.artist.upsert({
           where: { spotifyId: a.id },
-          update: { name: a.name, image: a.image, genres: a.genres ?? [] },
-          create: { spotifyId: a.id, name: a.name, image: a.image, genres: a.genres ?? [] },
+          update: { name: a.name, image: a.image},
+          create: { spotifyId: a.id, name: a.name, image: a.image},
         })
       )
     );
