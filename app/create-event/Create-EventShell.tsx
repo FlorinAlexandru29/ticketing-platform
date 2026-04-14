@@ -255,7 +255,6 @@ export default function CreateEventShell() {
       setArtistSearchLoading(true);
       try {
         const res = await fetch(`/api/spotify/search?q=${encodeURIComponent(artistQuery)}`);
-        console.log(`/api/spotify/search?q=${encodeURIComponent(artistQuery)}`);
         const data = await res.json();
         setArtistSuggestions(data.items || []);
       } catch {
@@ -462,7 +461,6 @@ export default function CreateEventShell() {
         The event name is a prominent logo with a random effect.
         The artist names are listed clearly.
         The venue and date are included in a smaller font.
-        Include artist releases
         Artist Information ${selectedArtists
           .map((a) => {
             return `- ${a.name} ${a.albums}`;
@@ -479,7 +477,6 @@ export default function CreateEventShell() {
             : ""
         }
         Poster fills the entire image.
-        Make the color of the logo red
         
       `;
       
@@ -798,7 +795,7 @@ export default function CreateEventShell() {
                           />
                         </summary>
                         {editingCity && cityQuery.trim().length > 1 && (
-                          <ul className="menu dropdown-content bg-base-100 rounded-box z-10 w-64 p-2 shadow-sm max-h-64 overflow-auto">
+                          <ul className="menu dropdown-content bg-base-100 rounded-box z-10 w-64 p-2 shadow-sm max-h-64 overflow-auto" style={{ flexFlow: "column" }}>
                             {citySearchLoading && (
                               <li className="disabled">
                                 <a>
@@ -862,7 +859,8 @@ export default function CreateEventShell() {
                         {editingVenue && (venueQuery || "").trim().length > 1 && (
                           <ul
                             tabIndex={0}
-                            className="menu dropdown-content bg-base-100 rounded-box max-w-60 p-2 shadow-sm max-h-72 overflow-auto z-50"
+                            className="menu dropdown-content bg-base-100 rounded-box max-w-60 p-2 shadow-sm max-h-72 overflow-auto" 
+                            style={{ flexFlow: "column" }}
                           >
                             {venueLoading && (
                               <li className="disabled">
